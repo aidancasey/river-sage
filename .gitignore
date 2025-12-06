@@ -1,0 +1,130 @@
+# Python
+__pycache__/
+*.py[cod]
+*$py.class
+*.so
+.Python
+build/
+develop-eggs/
+dist/
+downloads/
+eggs/
+.eggs/
+lib/
+lib64/
+parts/
+sdist/
+var/
+wheels/
+pip-wheel-metadata/
+share/python-wheels/
+*.egg-info/
+.installed.cfg
+*.egg
+MANIFEST
+
+# Virtual environments
+venv/
+env/
+ENV/
+env.bak/
+venv.bak/
+.venv/
+
+# PyCharm
+.idea/
+*.iml
+
+# VS Code
+.vscode/
+*.code-workspace
+
+# Jupyter Notebook
+.ipynb_checkpoints
+*.ipynb
+
+# PyTest
+.pytest_cache/
+.coverage
+htmlcov/
+coverage.xml
+*.cover
+.hypothesis/
+
+# mypy
+.mypy_cache/
+.dmypy.json
+dmypy.json
+
+# Environments
+.env
+.env.local
+.env.*.local
+*.env
+
+# AWS
+.aws/
+*.pem
+
+# Lambda deployment
+package/
+lambda_function.zip
+*.zip
+
+# Logs
+*.log
+logs/
+
+# OS
+.DS_Store
+.DS_Store?
+._*
+.Spotlight-V100
+.Trashes
+ehthumbs.db
+Thumbs.db
+
+# Downloaded PDFs (for testing)
+*.pdf
+test_data/
+
+# Temporary files
+*.tmp
+*.bak
+*.swp
+*~
+
+# SAM (AWS Serverless Application Model)
+.aws-sam/
+# Note: samconfig.toml should be version controlled (contains deployment config)
+
+# Terraform
+.terraform/
+*.tfstate
+*.tfstate.*
+.terraform.lock.hcl
+
+# Documentation
+docs/_build/
+site/
+
+# Testing
+.tox/
+.nox/
+
+# Profiling
+*.prof
+*.lprof
+
+# Local configuration
+config.local.json
+settings.local.py
+
+# Node.js / Web App
+web/node_modules/
+web/dist/
+web/.vite/
+*.local
+
+# macOS
+.DS_Store

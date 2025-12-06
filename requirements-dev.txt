@@ -1,0 +1,47 @@
+# Development and testing dependencies
+# Include production dependencies
+-r requirements.txt
+
+# Testing framework
+pytest>=7.4.0,<8.0.0
+pytest-cov>=4.1.0,<5.0.0
+pytest-mock>=3.11.0,<4.0.0
+pytest-asyncio>=0.21.0,<1.0.0
+
+# HTTP mocking for tests
+responses>=0.23.0,<1.0.0
+requests-mock>=1.11.0,<2.0.0
+
+# Code formatting
+black>=23.0.0,<24.0.0
+isort>=5.12.0,<6.0.0
+
+# Linting
+flake8>=6.0.0,<7.0.0
+pylint>=3.0.0,<4.0.0
+
+# Type checking
+mypy>=1.4.0,<2.0.0
+types-requests>=2.31.0
+types-python-dateutil>=2.8.0
+
+# Security scanning
+bandit>=1.7.5,<2.0.0
+safety>=2.3.0,<3.0.0
+
+# Documentation
+Sphinx>=7.0.0,<8.0.0
+sphinx-rtd-theme>=1.3.0,<2.0.0
+
+# Local development
+python-dotenv>=1.0.0,<2.0.0
+ipython>=8.12.0,<9.0.0
+ipdb>=0.13.13,<1.0.0
+
+# AWS testing
+moto>=4.2.0,<5.0.0  # Mock AWS services
+localstack-client>=2.0,<3.0.0
+
+# Performance profiling
+py-spy>=0.3.14,<1.0.0
+memory-profiler>=0.61.0,<1.0.0

@@ -1,0 +1,9 @@
+# Lambda function dependencies for Data API
+# These are installed automatically by AWS Lambda runtime or SAM build
+
+# boto3 is already available in Lambda runtime
+# No additional dependencies required for this Lambda function
+
+# For local testing only (not deployed to Lambda):
+# pytest==7.4.0
+# moto==4.2.0  # For mocking AWS services

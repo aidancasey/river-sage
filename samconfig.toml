@@ -1,0 +1,71 @@
+# SAM Configuration File
+# This file stores default parameters for SAM deployments
+
+version = 0.1
+
+[default]
+[default.global.parameters]
+stack_name = "river-data-scraper"
+
+[default.build.parameters]
+cached = true
+parallel = true
+
+[default.validate.parameters]
+lint = true
+
+[default.deploy.parameters]
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+confirm_changeset = true
+resolve_s3 = true
+region = "eu-west-1"
+parameter_overrides = "Environment=production S3BucketName=river-data-ireland-prod ScheduleExpression=\"rate(1 hour)\" WebAppBucketName=river-guru-web"
+
+[default.package.parameters]
+resolve_s3 = true
+
+[default.sync.parameters]
+watch = true
+
+[default.local_start_api.parameters]
+warm_containers = "EAGER"
+
+[default.local_start_lambda.parameters]
+warm_containers = "EAGER"
+
+# Development environment configuration
+[dev]
+[dev.global.parameters]
+stack_name = "river-data-scraper-dev"
+
+[dev.deploy.parameters]
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+confirm_changeset = false  # Skip confirmation in dev
+resolve_s3 = true
+region = "eu-west-1"
+parameter_overrides = "Environment=development S3BucketName=river-data-ireland-dev ScheduleExpression=\"rate(6 hours)\" WebAppBucketName=river-guru-web"
+
+# Staging environment configuration
+[staging]
+[staging.global.parameters]
+stack_name = "river-data-scraper-staging"
+
+[staging.deploy.parameters]
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+confirm_changeset = true
+resolve_s3 = true
+region = "eu-west-1"
+parameter_overrides = "Environment=staging S3BucketName=river-data-ireland-staging ScheduleExpression=\"rate(2 hours)\" WebAppBucketName=river-guru-web"
+
+# Production environment configuration
+[production]
+[production.global.parameters]
+stack_name = "river-data-scraper-prod"
+
+[production.deploy.parameters]
+capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
+confirm_changeset = true  # Always confirm in production
+resolve_s3 = true
+region = "eu-west-1"
+parameter_overrides = "Environment=production S3BucketName=river-data-ireland-prod ScheduleExpression=\"cron(30 * * * ? *)\" WebAppBucketName=river-guru-web"
+fail_on_empty_changeset = false

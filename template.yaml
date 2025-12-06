@@ -1,0 +1,427 @@
+AWSTemplateFormatVersion: '2010-09-09'
+Transform: AWS::Serverless-2016-10-31
+Description: >
+  Irish Rivers Data Scraper
+
+  Serverless application that collects river flow data from ESB Hydro PDFs,
+  parses the data, and stores it in S3 for historical tracking and analysis.
+
+# Global configuration for all resources
+Globals:
+  Function:
+    Timeout: 120
+    MemorySize: 256
+    Runtime: python3.9
+    Architectures:
+      - arm64  # Graviton2 - 20% cheaper than x86
+    Environment:
+      Variables:
+        ENVIRONMENT: production
+        LOG_LEVEL: INFO
+
+Parameters:
+  Environment:
+    Type: String
+    Default: production
+    AllowedValues:
+      - development
+      - staging
+      - production
+    Description: Deployment environment
+
+  S3BucketName:
+    Type: String
+    Default: river-data-ireland
+    Description: Name for the S3 bucket to store river data
+
+  ScheduleExpression:
+    Type: String
+    Default: "rate(1 hour)"
+    Description: EventBridge schedule expression (e.g., "rate(1 hour)" or "cron(0 * * * ? *)")
+
+  WebAppBucketName:
+    Type: String
+    Default: river-guru-web
+    Description: Name for the S3 bucket to host the River Guru web application
+
+Resources:
+  # S3 Bucket for storing river data (raw PDFs, parsed JSON, aggregated data)
+  RiverDataBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Ref S3BucketName
+      BucketEncryption:
+        ServerSideEncryptionConfiguration:
+          - ServerSideEncryptionByDefault:
+              SSEAlgorithm: AES256
+      VersioningConfiguration:
+        Status: Enabled
+      LifecycleConfiguration:
+        Rules:
+          # Move raw PDFs to Glacier after 90 days
+          - Id: ArchiveRawPDFs
+            Status: Enabled
+            Prefix: raw/
+            Transitions:
+              - TransitionInDays: 90
+                StorageClass: GLACIER
+            NoncurrentVersionTransitions:
+              - TransitionInDays: 30
+                StorageClass: GLACIER
+          # Move parsed JSON to Intelligent-Tiering after 30 days
+          - Id: IntelligentTieringParsed
+            Status: Enabled
+            Prefix: parsed/
+            Transitions:
+              - TransitionInDays: 30
+                StorageClass: INTELLIGENT_TIERING
+          # Keep aggregated data in Standard (frequently accessed)
+          - Id: DeleteOldVersions
+            Status: Enabled
+            NoncurrentVersionExpirationInDays: 90
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: true
+        BlockPublicPolicy: true
+        IgnorePublicAcls: true
+        RestrictPublicBuckets: true
+      CorsConfiguration:
+        CorsRules:
+          - AllowedHeaders:
+              - '*'
+            AllowedMethods:
+              - GET
+              - HEAD
+            AllowedOrigins:
+              - '*'
+            MaxAge: 3600
+      Tags:
+        - Key: Project
+          Value: IrishRiversDataScraper
+        - Key: Environment
+          Value: !Ref Environment
+
+  # IAM Role for Lambda function
+  RiverDataCollectorRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-lambda-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        # Basic Lambda execution (CloudWatch Logs)
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        # S3 permissions for the data bucket
+        - PolicyName: S3Access
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:PutObject
+                  - s3:GetObject
+                  - s3:ListBucket
+                  - s3:DeleteObject
+                  - s3:PutObjectAcl
+                Resource:
+                  - !GetAtt RiverDataBucket.Arn
+                  - !Sub ${RiverDataBucket.Arn}/*
+      Tags:
+        - Key: Project
+          Value: IrishRiversDataScraper
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Lambda function for collecting river data
+  RiverDataCollectorFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-collector
+      Description: Downloads and processes river flow data from ESB Hydro PDFs
+      CodeUri: .
+      Handler: src.lambda_handler.lambda_handler
+      Role: !GetAtt RiverDataCollectorRole.Arn
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref RiverDataBucket
+          S3_REGION: !Ref AWS::Region
+          S3_ENABLE_ENCRYPTION: "true"
+          S3_STORAGE_CLASS: STANDARD
+          # Data source configuration
+          DATA_SOURCE_NAME: Inniscarra
+          DATA_SOURCE_RIVER: River Lee
+          DATA_SOURCE_STATION_ID: inniscarra
+          DATA_SOURCE_URL: http://www.esbhydro.ie/Lee/04-Inniscarra-Flow.pdf
+          DATA_SOURCE_ENABLED: "true"
+      Events:
+        # EventBridge scheduled trigger
+        HourlySchedule:
+          Type: Schedule
+          Properties:
+            Schedule: !Ref ScheduleExpression
+            Description: Trigger river data collection hourly
+            Enabled: true
+      Tags:
+        Project: IrishRiversDataScraper
+        Environment: !Ref Environment
+
+  # CloudWatch Log Group with retention
+  RiverDataCollectorLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${RiverDataCollectorFunction}
+      RetentionInDays: 30
+
+  # CloudWatch Alarm for Lambda errors
+  RiverDataCollectorErrorAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-lambda-errors
+      AlarmDescription: Alert when Lambda function encounters errors
+      MetricName: Errors
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 3600  # 1 hour
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref RiverDataCollectorFunction
+      TreatMissingData: notBreaching
+
+  # CloudWatch Alarm for Lambda throttling
+  RiverDataCollectorThrottleAlarm:
+    Type: AWS::CloudWatch::Alarm
+    Properties:
+      AlarmName: !Sub ${AWS::StackName}-lambda-throttles
+      AlarmDescription: Alert when Lambda function is throttled
+      MetricName: Throttles
+      Namespace: AWS/Lambda
+      Statistic: Sum
+      Period: 3600
+      EvaluationPeriods: 1
+      Threshold: 1
+      ComparisonOperator: GreaterThanThreshold
+      Dimensions:
+        - Name: FunctionName
+          Value: !Ref RiverDataCollectorFunction
+      TreatMissingData: notBreaching
+
+  # ========================================
+  # Phase 2: River Guru Web App Resources
+  # ========================================
+
+  # S3 Bucket for hosting River Guru web application
+  RiverGuruWebBucket:
+    Type: AWS::S3::Bucket
+    Properties:
+      BucketName: !Sub ${WebAppBucketName}-${Environment}
+      WebsiteConfiguration:
+        IndexDocument: index.html
+        ErrorDocument: index.html  # SPA routing support
+      PublicAccessBlockConfiguration:
+        BlockPublicAcls: false
+        BlockPublicPolicy: false
+        IgnorePublicAcls: false
+        RestrictPublicBuckets: false
+      Tags:
+        - Key: Project
+          Value: RiverGuruWebApp
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Bucket policy to allow public read access for web hosting
+  RiverGuruWebBucketPolicy:
+    Type: AWS::S3::BucketPolicy
+    Properties:
+      Bucket: !Ref RiverGuruWebBucket
+      PolicyDocument:
+        Statement:
+          - Sid: PublicReadGetObject
+            Effect: Allow
+            Principal: '*'
+            Action: s3:GetObject
+            Resource: !Sub ${RiverGuruWebBucket.Arn}/*
+
+  # IAM Role for Data API Lambda function
+  DataApiLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-data-api-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3ReadAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:ListBucket
+                Resource:
+                  - !GetAtt RiverDataBucket.Arn
+                  - !Sub ${RiverDataBucket.Arn}/*
+      Tags:
+        - Key: Project
+          Value: RiverGuruWebApp
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Lambda function for Data API
+  DataApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-data-api
+      Description: REST API for accessing river flow data
+      CodeUri: api/
+      Handler: data_api.lambda_handler
+      Role: !GetAtt DataApiLambdaRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref RiverDataBucket
+          S3_REGION: !Ref AWS::Region
+          LOG_LEVEL: INFO
+      Events:
+        # API Gateway event for /latest endpoint
+        GetLatestFlow:
+          Type: Api
+          Properties:
+            Path: /api/flow/latest
+            Method: GET
+            RestApiId: !Ref RiverGuruApi
+        # API Gateway event for /history endpoint
+        GetHistoricalFlow:
+          Type: Api
+          Properties:
+            Path: /api/flow/history
+            Method: GET
+            RestApiId: !Ref RiverGuruApi
+        # OPTIONS for CORS preflight
+        OptionsLatest:
+          Type: Api
+          Properties:
+            Path: /api/flow/latest
+            Method: OPTIONS
+            RestApiId: !Ref RiverGuruApi
+        OptionsHistory:
+          Type: Api
+          Properties:
+            Path: /api/flow/history
+            Method: OPTIONS
+            RestApiId: !Ref RiverGuruApi
+      Tags:
+        Project: RiverGuruWebApp
+        Environment: !Ref Environment
+
+  # CloudWatch Log Group for Data API Lambda
+  DataApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${DataApiFunction}
+      RetentionInDays: 30
+
+  # API Gateway REST API
+  RiverGuruApi:
+    Type: AWS::Serverless::Api
+    Properties:
+      Name: !Sub ${AWS::StackName}-api
+      StageName: !Ref Environment
+      Cors:
+        AllowMethods: "'GET,OPTIONS'"
+        AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
+        AllowOrigin: "'*'"
+      Tags:
+        Project: RiverGuruWebApp
+        Environment: !Ref Environment
+
+Outputs:
+  # Lambda Function
+  RiverDataCollectorFunctionArn:
+    Description: ARN of the Lambda function
+    Value: !GetAtt RiverDataCollectorFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-function-arn
+
+  RiverDataCollectorFunctionName:
+    Description: Name of the Lambda function
+    Value: !Ref RiverDataCollectorFunction
+    Export:
+      Name: !Sub ${AWS::StackName}-function-name
+
+  # S3 Bucket
+  RiverDataBucketName:
+    Description: Name of the S3 bucket for river data
+    Value: !Ref RiverDataBucket
+    Export:
+      Name: !Sub ${AWS::StackName}-bucket-name
+
+  RiverDataBucketArn:
+    Description: ARN of the S3 bucket
+    Value: !GetAtt RiverDataBucket.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-bucket-arn
+
+  # CloudWatch
+  LogGroupName:
+    Description: CloudWatch Log Group for Lambda function
+    Value: !Ref RiverDataCollectorLogGroup
+
+  # URLs
+  S3ConsoleUrl:
+    Description: URL to S3 bucket in AWS Console
+    Value: !Sub https://s3.console.aws.amazon.com/s3/buckets/${RiverDataBucket}
+
+  LambdaConsoleUrl:
+    Description: URL to Lambda function in AWS Console
+    Value: !Sub https://console.aws.amazon.com/lambda/home?region=${AWS::Region}#/functions/${RiverDataCollectorFunction}
+
+  CloudWatchLogsUrl:
+    Description: URL to CloudWatch Logs
+    Value: !Sub https://console.aws.amazon.com/cloudwatch/home?region=${AWS::Region}#logsV2:log-groups/log-group/${RiverDataCollectorLogGroup}
+
+  # Phase 2: River Guru Web App Outputs
+  RiverGuruApiUrl:
+    Description: API Gateway endpoint URL for River Guru Data API
+    Value: !Sub https://${RiverGuruApi}.execute-api.${AWS::Region}.amazonaws.com/${Environment}
+    Export:
+      Name: !Sub ${AWS::StackName}-api-url
+
+  RiverGuruWebBucketName:
+    Description: Name of the S3 bucket hosting River Guru web app
+    Value: !Ref RiverGuruWebBucket
+    Export:
+      Name: !Sub ${AWS::StackName}-web-bucket-name
+
+  RiverGuruWebsiteUrl:
+    Description: URL for River Guru web application
+    Value: !GetAtt RiverGuruWebBucket.WebsiteURL
+    Export:
+      Name: !Sub ${AWS::StackName}-web-url
+
+  DataApiFunctionName:
+    Description: Name of the Data API Lambda function
+    Value: !Ref DataApiFunction
+    Export:
+      Name: !Sub ${AWS::StackName}-data-api-name
+
+  DataApiFunctionArn:
+    Description: ARN of the Data API Lambda function
+    Value: !GetAtt DataApiFunction.Arn
+    Export:
+      Name: !Sub ${AWS::StackName}-data-api-arn
