@@ -13,7 +13,7 @@
           </div>
           <div class="hidden sm:block text-right">
             <p class="text-xs text-gray-500">Real-time data from</p>
-            <p class="text-sm font-medium text-gray-700">ESB Hydro</p>
+            <p class="text-sm font-medium text-gray-700">ESB Hydro & waterlevel.ie</p>
           </div>
         </div>
       </div>
@@ -24,21 +24,32 @@
       <!-- Introduction -->
       <div class="mb-8 text-center">
         <h2 class="text-xl font-semibold text-gray-800 mb-2">
-          Inniscarra Dam - River Lee
+          River Lee Monitoring
         </h2>
         <p class="text-gray-600 max-w-2xl mx-auto">
-          Monitor real-time water flow rates and historical trends for the Inniscarra hydroelectric station on the River Lee, Cork, Ireland.
+          Monitor real-time water flow, water level, and temperature data from multiple stations on the River Lee, Cork, Ireland.
         </p>
       </div>
 
-      <!-- Current Flow Status -->
-      <div class="mb-8">
-        <FlowStatus station-id="inniscarra" />
-      </div>
+      <!-- Station Grid -->
+      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+        <!-- Inniscarra Dam Flow -->
+        <div>
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">Inniscarra Dam - Flow Rate</h3>
+          <FlowStatus station-id="inniscarra" />
+          <div class="mt-4">
+            <FlowChart station-id="inniscarra" />
+          </div>
+        </div>
 
-      <!-- Historical Flow Chart -->
-      <div class="mb-8">
-        <FlowChart station-id="inniscarra" />
+        <!-- Waterworks Weir - Water Level & Temperature -->
+        <div>
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">Waterworks Weir - Water Level & Temperature</h3>
+          <WaterLevelStatus station-id="lee_waterworks" />
+          <div class="mt-4">
+            <WaterLevelChart station-id="lee_waterworks" />
+          </div>
+        </div>
       </div>
 
       <!-- Information Cards -->
@@ -76,8 +87,11 @@
     <footer class="bg-white border-t border-gray-200 mt-12">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div class="text-center text-sm text-gray-500">
-          <p>
-            Data sourced from ESB Hydro | Updates hourly at 30 minutes past the hour
+          <p class="mb-1">
+            Data sourced from ESB Hydro and waterlevel.ie | Updates hourly at 30 minutes past the hour
+          </p>
+          <p class="text-xs">
+            Water level data from Office of Public Works (OPW) via waterlevel.ie (CC BY 4.0)
           </p>
         </div>
       </div>
@@ -88,6 +102,8 @@
 <script setup>
 import FlowStatus from './components/FlowStatus.vue';
 import FlowChart from './components/FlowChart.vue';
+import WaterLevelStatus from './components/WaterLevelStatus.vue';
+import WaterLevelChart from './components/WaterLevelChart.vue';
 </script>
 
 <style>

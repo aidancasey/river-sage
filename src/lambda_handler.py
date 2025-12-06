@@ -9,9 +9,10 @@ import json
 from datetime import datetime
 from typing import Dict, Any
 
-from .config.settings import Settings
+from .config.settings import Settings, DataSourceType
 from .connectors.http_connector import HTTPConnector
 from .parsers.esb_hydro_parser import ESBHydroFlowParser
+from .parsers.waterlevel_parser import WaterLevelParser
 from .storage.s3_storage import S3Storage
 from .utils.logger import setup_logging, StructuredLogger
 from .utils.retry import retry_with_backoff
@@ -98,37 +99,97 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                     url=source_config.url
                 )
 
-                # Create HTTP connector
-                with HTTPConnector(settings.connection) as connector:
-                    # Download with retry logic
-                    def download_fn():
-                        return connector.download_file(source_config.url)
+                # Parse content based on source type
+                if source_config.source_type == DataSourceType.PDF:
+                    # ESB Hydro PDF parsing
+                    with HTTPConnector(settings.connection) as connector:
+                        # Download with retry logic
+                        def download_fn():
+                            return connector.download_file(source_config.url)
 
-                    content, file_hash = retry_with_backoff(
-                        download_fn,
-                        settings.retry
+                        content, file_hash = retry_with_backoff(
+                            download_fn,
+                            settings.retry
+                        )
+
+                    logger.info(
+                        f"Successfully downloaded {source_config.name}",
+                        station_id=source_config.station_id,
+                        size_bytes=len(content),
+                        hash=file_hash[:8] + "..."
                     )
 
-                logger.info(
-                    f"Successfully downloaded {source_config.name}",
-                    station_id=source_config.station_id,
-                    size_bytes=len(content),
-                    hash=file_hash[:8] + "..."
-                )
+                    parser = ESBHydroFlowParser(
+                        station_name=source_config.name,
+                        river_name=source_config.river
+                    )
+                    parsed_data = parser.parse(content, source_hash=file_hash)
 
-                # Parse PDF content (FR2)
-                parser = ESBHydroFlowParser(
-                    station_name=source_config.name,
-                    river_name=source_config.river
-                )
+                elif source_config.source_type == DataSourceType.API:
+                    # Waterlevel.ie CSV parsing
+                    # Download both level and temperature CSV
+                    level_url = source_config.url.replace("{sensor}", "0001")
+                    temp_url = source_config.url.replace("{sensor}", "0002")
 
-                parsed_data = parser.parse(content, source_hash=file_hash)
+                    logger.info(
+                        f"Downloading water level data from {source_config.name}",
+                        station_id=source_config.station_id,
+                        level_url=level_url,
+                        temp_url=temp_url
+                    )
+
+                    with HTTPConnector(settings.connection) as connector:
+                        # Download level CSV
+                        def download_level_fn():
+                            return connector.download_file(level_url)
+                        level_csv, level_hash = retry_with_backoff(
+                            download_level_fn,
+                            settings.retry
+                        )
+
+                        # Download temperature CSV
+                        def download_temp_fn():
+                            return connector.download_file(temp_url)
+                        temp_csv, temp_hash = retry_with_backoff(
+                            download_temp_fn,
+                            settings.retry
+                        )
+
+                    file_hash = f"{level_hash[:16]}+{temp_hash[:16]}"
+
+                    logger.info(
+                        f"Successfully downloaded {source_config.name}",
+                        station_id=source_config.station_id,
+                        level_size_bytes=len(level_csv),
+                        temp_size_bytes=len(temp_csv),
+                        hash=file_hash
+                    )
+
+                    parser = WaterLevelParser(
+                        station_name=source_config.name,
+                        station_id=source_config.station_id,
+                        river_name=source_config.river
+                    )
+                    parsed_data = parser.parse(level_csv, temp_csv, source_hash=file_hash)
+
+                else:
+                    raise ValueError(f"Unsupported source type: {source_config.source_type}")
+
+                # Log parsing success with appropriate metrics
+                log_data = {
+                    "station_id": source_config.station_id,
+                    "reading_count": len(parsed_data.historical_readings)
+                }
+                if hasattr(parsed_data.current_reading, 'flow_rate_m3s'):
+                    log_data["current_flow_m3s"] = parsed_data.current_reading.flow_rate_m3s
+                if hasattr(parsed_data.current_reading, 'water_level_m'):
+                    log_data["current_level_m"] = parsed_data.current_reading.water_level_m
+                if hasattr(parsed_data.current_reading, 'temperature_c'):
+                    log_data["current_temp_c"] = parsed_data.current_reading.temperature_c
 
                 logger.info(
                     f"Successfully parsed {source_config.name}",
-                    station_id=source_config.station_id,
-                    current_flow=parsed_data.current_reading.flow_rate_m3s,
-                    reading_count=len(parsed_data.historical_readings)
+                    **log_data
                 )
 
                 # Upload to S3 (FR3)
@@ -136,14 +197,33 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 if settings.s3:
                     storage = S3Storage(settings.s3)
 
-                    # Upload raw PDF
-                    raw_key = storage.upload_raw_pdf(
-                        content=content,
-                        station_id=source_config.station_id,
-                        timestamp=parsed_data.current_reading.timestamp,
-                        content_hash=file_hash
-                    )
-                    s3_keys['raw'] = raw_key
+                    # Upload raw data (PDF or CSV)
+                    if source_config.source_type == DataSourceType.PDF:
+                        raw_key = storage.upload_raw_pdf(
+                            content=content,
+                            station_id=source_config.station_id,
+                            timestamp=parsed_data.current_reading.timestamp,
+                            content_hash=file_hash
+                        )
+                        s3_keys['raw'] = raw_key
+                    elif source_config.source_type == DataSourceType.API:
+                        # Upload both CSVs as raw data
+                        raw_level_key = storage.upload_raw_csv(
+                            content=level_csv,
+                            station_id=source_config.station_id,
+                            timestamp=parsed_data.current_reading.timestamp,
+                            sensor_type="level",
+                            content_hash=level_hash
+                        )
+                        raw_temp_key = storage.upload_raw_csv(
+                            content=temp_csv,
+                            station_id=source_config.station_id,
+                            timestamp=parsed_data.current_reading.timestamp,
+                            sensor_type="temperature",
+                            content_hash=temp_hash
+                        )
+                        s3_keys['raw_level'] = raw_level_key
+                        s3_keys['raw_temp'] = raw_temp_key
 
                     # Upload parsed JSON
                     parsed_key = storage.upload_parsed_json(
@@ -171,17 +251,27 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         station_id=source_config.station_id
                     )
 
-                results.append({
+                # Build result dictionary with appropriate fields
+                result = {
                     "station_id": source_config.station_id,
                     "success": True,
-                    "size_bytes": len(content),
                     "hash": file_hash,
-                    "current_flow_m3s": parsed_data.current_reading.flow_rate_m3s,
                     "reading_count": len(parsed_data.historical_readings),
                     "timestamp": parsed_data.current_reading.timestamp.isoformat() + "Z",
                     "s3_keys": s3_keys if settings.s3 else None,
                     "attempts": 1  # TODO: Track actual attempts
-                })
+                }
+
+                # Add type-specific fields
+                if hasattr(parsed_data.current_reading, 'flow_rate_m3s'):
+                    result["current_flow_m3s"] = parsed_data.current_reading.flow_rate_m3s
+                    result["size_bytes"] = len(content)
+                if hasattr(parsed_data.current_reading, 'water_level_m'):
+                    result["current_water_level_m"] = parsed_data.current_reading.water_level_m
+                if hasattr(parsed_data.current_reading, 'temperature_c'):
+                    result["current_temperature_c"] = parsed_data.current_reading.temperature_c
+
+                results.append(result)
 
             except Exception as e:
                 logger.error(

@@ -77,65 +77,122 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 def handle_latest_flow(event: Dict[str, Any]) -> Dict[str, Any]:
     """
-    Handle GET /latest endpoint - returns the most recent flow data.
+    Handle GET /latest endpoint - returns the most recent data from all stations.
 
     Args:
         event: API Gateway event object
 
     Returns:
-        Response with latest flow data
+        Response with latest data from all stations
     """
     try:
-        # Query parameters (optional station filter for future)
+        # Query parameters (optional station filter)
         query_params = event.get('queryStringParameters') or {}
-        station_id = query_params.get('station', 'inniscarra')
+        station_filter = query_params.get('station')
 
-        logger.info(f"Fetching latest flow data for station: {station_id}")
+        logger.info(f"Fetching latest data (filter: {station_filter or 'all'})")
 
-        # Read latest aggregated data from S3
-        s3_key = f'aggregated/{station_id}_latest.json'
+        # List of all stations to fetch
+        stations = ['inniscarra', 'lee_waterworks']
 
-        try:
-            response = s3_client.get_object(
-                Bucket=S3_BUCKET_NAME,
-                Key=s3_key
-            )
-            data = json.loads(response['Body'].read().decode('utf-8'))
+        # Apply filter if specified
+        if station_filter:
+            if station_filter not in stations:
+                return error_response(404, f'Unknown station: {station_filter}')
+            stations = [station_filter]
 
-            # Parse Phase 1 data structure
-            latest_reading = data.get('latest_reading', {})
-            timestamp_str = latest_reading.get('timestamp', '')
+        # Fetch data from each station
+        stations_data = []
+        for station_id in stations:
+            try:
+                station_data = fetch_station_latest(station_id)
+                if station_data:
+                    stations_data.append(station_data)
+            except Exception as e:
+                logger.warning(f"Failed to fetch {station_id}: {str(e)}")
+                # Continue with other stations
 
-            # Calculate data age
-            timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-            data_age_minutes = int((datetime.now(timestamp.tzinfo) - timestamp).total_seconds() / 60)
+        if not stations_data:
+            return error_response(404, 'No data available from any station')
 
-            # Determine flow status based on current flow rate
-            flow_rate = latest_reading.get('flow_rate_m3s', 0)
-            status = get_flow_status(flow_rate)
+        # Format response
+        response_data = {
+            'timestamp': datetime.utcnow().isoformat() + 'Z',
+            'stations': stations_data
+        }
 
-            # Format response
-            response_data = {
-                'stationId': station_id,
-                'name': data.get('station', 'Inniscarra'),
-                'river': data.get('river', 'River Lee'),
-                'currentFlow': flow_rate,
-                'unit': 'm³/s',
-                'timestamp': timestamp_str,
-                'dataAge': data_age_minutes,
-                'status': status
-            }
-
-            logger.info(f"Successfully fetched latest data: flow={flow_rate}, age={data_age_minutes}min")
-            return cors_response(200, response_data)
-
-        except s3_client.exceptions.NoSuchKey:
-            logger.warning(f"No data found for station: {station_id}")
-            return error_response(404, f'No data found for station: {station_id}')
+        logger.info(f"Successfully fetched data from {len(stations_data)} station(s)")
+        return cors_response(200, response_data)
 
     except Exception as e:
-        logger.error(f"Error fetching latest flow: {str(e)}", exc_info=True)
-        return error_response(500, f'Error fetching latest flow data: {str(e)}')
+        logger.error(f"Error fetching latest data: {str(e)}", exc_info=True)
+        return error_response(500, f'Error fetching latest data: {str(e)}')
+
+
+def fetch_station_latest(station_id: str) -> Optional[Dict[str, Any]]:
+    """
+    Fetch latest data for a specific station from S3.
+
+    Args:
+        station_id: Station identifier
+
+    Returns:
+        Station data dictionary or None if not found
+    """
+    s3_key = f'aggregated/{station_id}_latest.json'
+
+    try:
+        response = s3_client.get_object(
+            Bucket=S3_BUCKET_NAME,
+            Key=s3_key
+        )
+        data = json.loads(response['Body'].read().decode('utf-8'))
+
+        # Extract common fields
+        latest_reading = data.get('latest_reading', {})
+        timestamp_str = latest_reading.get('timestamp', '')
+
+        # Calculate data age
+        timestamp = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        data_age_minutes = int((datetime.now(timestamp.tzinfo) - timestamp).total_seconds() / 60)
+
+        # Build station data response
+        station_data = {
+            'stationId': station_id,
+            'name': data.get('station', ''),
+            'river': data.get('river', ''),
+            'timestamp': timestamp_str,
+            'dataAge': data_age_minutes
+        }
+
+        # Add type-specific fields
+        if 'flow_rate_m3s' in latest_reading:
+            # Flow data (Inniscarra)
+            flow_rate = latest_reading.get('flow_rate_m3s', 0)
+            station_data['type'] = 'flow'
+            station_data['flowRate'] = flow_rate
+            station_data['unit'] = 'm³/s'
+            station_data['status'] = get_flow_status(flow_rate)
+
+        if 'water_level_m' in latest_reading or 'temperature_c' in latest_reading:
+            # Water level data (Waterworks Weir)
+            station_data['type'] = 'water_level'
+            if 'water_level_m' in latest_reading:
+                station_data['waterLevel'] = latest_reading.get('water_level_m')
+                station_data['waterLevelUnit'] = 'm'
+            if 'temperature_c' in latest_reading:
+                station_data['temperature'] = latest_reading.get('temperature_c')
+                station_data['temperatureUnit'] = '°C'
+
+        logger.info(f"Fetched data for {station_id}")
+        return station_data
+
+    except s3_client.exceptions.NoSuchKey:
+        logger.warning(f"No data found for station: {station_id}")
+        return None
+    except Exception as e:
+        logger.error(f"Error fetching {station_id}: {str(e)}", exc_info=True)
+        raise
 
 
 def handle_historical_flow(event: Dict[str, Any]) -> Dict[str, Any]:
@@ -187,6 +244,9 @@ def handle_historical_flow(event: Dict[str, Any]) -> Dict[str, Any]:
             cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
             historical_readings = data.get('historical_readings', [])
 
+            # Determine station type from first reading
+            station_type = 'flow' if historical_readings and 'flow_rate_m3s' in historical_readings[0] else 'water_level'
+
             # Convert to API format and filter by time
             filtered_points = []
             for reading in historical_readings:
@@ -194,34 +254,68 @@ def handle_historical_flow(event: Dict[str, Any]) -> Dict[str, Any]:
                 reading_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
 
                 if reading_time >= cutoff_time:
-                    filtered_points.append({
-                        'timestamp': timestamp_str,
-                        'flow': reading.get('flow_rate_m3s', 0)
-                    })
+                    if station_type == 'flow':
+                        filtered_points.append({
+                            'timestamp': timestamp_str,
+                            'flow': reading.get('flow_rate_m3s', 0)
+                        })
+                    else:
+                        filtered_points.append({
+                            'timestamp': timestamp_str,
+                            'waterLevel': reading.get('water_level_m'),
+                            'temperature': reading.get('temperature_c')
+                        })
 
             # Sort by timestamp (oldest first)
             filtered_points.sort(key=lambda x: x['timestamp'])
 
             # Calculate statistics
             if filtered_points:
-                flow_values = [point['flow'] for point in filtered_points]
-                statistics = {
-                    'min': round(min(flow_values), 2),
-                    'max': round(max(flow_values), 2),
-                    'average': round(sum(flow_values) / len(flow_values), 2),
-                    'trend': calculate_trend(flow_values)
-                }
+                if station_type == 'flow':
+                    values = [point['flow'] for point in filtered_points]
+                    statistics = {
+                        'min': round(min(values), 2),
+                        'max': round(max(values), 2),
+                        'average': round(sum(values) / len(values), 2),
+                        'trend': calculate_trend(values)
+                    }
+                else:
+                    # Water level statistics
+                    level_values = [point['waterLevel'] for point in filtered_points if point['waterLevel'] is not None]
+                    if level_values:
+                        statistics = {
+                            'minLevel': round(min(level_values), 3),
+                            'maxLevel': round(max(level_values), 3),
+                            'averageLevel': round(sum(level_values) / len(level_values), 3),
+                            'trend': calculate_trend(level_values)
+                        }
+                    else:
+                        statistics = {
+                            'minLevel': 0,
+                            'maxLevel': 0,
+                            'averageLevel': 0,
+                            'trend': 'unknown'
+                        }
             else:
-                statistics = {
-                    'min': 0,
-                    'max': 0,
-                    'average': 0,
-                    'trend': 'unknown'
-                }
+                if station_type == 'flow':
+                    statistics = {
+                        'min': 0,
+                        'max': 0,
+                        'average': 0,
+                        'trend': 'unknown'
+                    }
+                else:
+                    statistics = {
+                        'minLevel': 0,
+                        'maxLevel': 0,
+                        'averageLevel': 0,
+                        'trend': 'unknown'
+                    }
 
             # Format response
             response_data = {
                 'stationId': station_id,
+                'stationType': station_type,
                 'timeRange': {
                     'start': cutoff_time.isoformat(),
                     'end': datetime.now(timezone.utc).isoformat(),

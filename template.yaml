@@ -3,7 +3,8 @@ Transform: AWS::Serverless-2016-10-31
 Description: >
   Irish Rivers Data Scraper
 
-  Serverless application that collects river flow data from ESB Hydro PDFs,
+  Serverless application that collects river data (flow, water level, temperature)
+  from multiple sources including ESB Hydro PDFs and waterlevel.ie API,
   parses the data, and stores it in S3 for historical tracking and analysis.
 
 # Global configuration for all resources
@@ -142,7 +143,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${AWS::StackName}-collector
-      Description: Downloads and processes river flow data from ESB Hydro PDFs
+      Description: Downloads and processes river data (flow, level, temperature) from multiple sources
       CodeUri: .
       Handler: src.lambda_handler.lambda_handler
       Role: !GetAtt RiverDataCollectorRole.Arn
@@ -152,12 +153,26 @@ Resources:
           S3_REGION: !Ref AWS::Region
           S3_ENABLE_ENCRYPTION: "true"
           S3_STORAGE_CLASS: STANDARD
-          # Data source configuration
-          DATA_SOURCE_NAME: Inniscarra
-          DATA_SOURCE_RIVER: River Lee
-          DATA_SOURCE_STATION_ID: inniscarra
-          DATA_SOURCE_URL: http://www.esbhydro.ie/Lee/04-Inniscarra-Flow.pdf
-          DATA_SOURCE_ENABLED: "true"
+          # Data sources configuration (JSON array)
+          DATA_SOURCES_JSON: |
+            [
+              {
+                "station_id": "inniscarra",
+                "name": "Inniscarra Dam",
+                "river": "River Lee",
+                "url": "http://www.esbhydro.ie/Lee/04-Inniscarra-Flow.pdf",
+                "source_type": "pdf",
+                "enabled": true
+              },
+              {
+                "station_id": "lee_waterworks",
+                "name": "Waterworks Weir",
+                "river": "River Lee",
+                "url": "https://waterlevel.ie/data/day/19102_{sensor}.csv",
+                "source_type": "api",
+                "enabled": true
+              }
+            ]
       Events:
         # EventBridge scheduled trigger
         HourlySchedule:

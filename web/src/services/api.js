@@ -28,7 +28,20 @@ apiClient.interceptors.response.use(
 );
 
 /**
- * Fetch the latest flow data for a station
+ * Fetch the latest data from all stations
+ * @returns {Promise<Object>} Latest data from all stations
+ */
+export async function getLatestData() {
+  try {
+    const response = await apiClient.get('/api/flow/latest');
+    return response.data;
+  } catch (error) {
+    throw new Error(`Failed to fetch latest data: ${error.message}`);
+  }
+}
+
+/**
+ * Fetch the latest flow data for a specific station
  * @param {string} stationId - Station ID (default: 'inniscarra')
  * @returns {Promise<Object>} Latest flow data
  */
@@ -37,7 +50,23 @@ export async function getLatestFlow(stationId = 'inniscarra') {
     const response = await apiClient.get('/api/flow/latest', {
       params: { station: stationId },
     });
-    return response.data;
+
+    // Extract the station from the response
+    const station = response.data.stations?.[0];
+    if (!station) {
+      throw new Error('No data available for station');
+    }
+
+    // Transform API response to match component expectations
+    return {
+      name: station.name,
+      river: station.river,
+      currentFlow: station.flowRate,
+      unit: station.unit,
+      status: station.status,
+      timestamp: station.timestamp,
+      dataAge: station.dataAge,
+    };
   } catch (error) {
     throw new Error(`Failed to fetch latest flow: ${error.message}`);
   }
@@ -107,6 +136,7 @@ export function getFlowStatusColor(status) {
 }
 
 export default {
+  getLatestData,
   getLatestFlow,
   getHistoricalFlow,
   getFlowStatusColor,

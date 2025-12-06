@@ -6,14 +6,16 @@ This document provides essential context about the River Guru project to help yo
 
 ## Project Overview
 
-**River Guru** is a low-cost serverless system for scraping and visualizing Irish river flow data from ESB Hydro. It consists of:
+**River Guru** is a low-cost serverless system for scraping and visualizing Irish river data from multiple sources. It consists of:
 - **Backend**: AWS Lambda functions for data collection and API
 - **Frontend**: Vue.js 3 single-page application
-- **Data Source**: ESB Hydro PDF reports (Inniscarra Dam on River Lee)
+- **Data Sources**:
+  - ESB Hydro PDF reports (Inniscarra Dam - flow data)
+  - waterlevel.ie CSV API (Waterworks Weir - water level & temperature)
 
-**Current Status**: Phase 1 & 2 Complete ✅
-- Data collection backend is deployed and running
-- Web app is live and displaying real-time flow data
+**Current Status**: Phase 2 Complete ✅, Phase 3 In Progress 🚧
+- Data collection backend is deployed and running with multiple sources
+- Web app is live and displaying data from both stations
 
 ## Architecture
 
@@ -28,13 +30,16 @@ EventBridge (Cron) → Lambda (Collector) → S3 (Data Storage)
 **Key Components**:
 - **Data Collector Lambda**: `src/lambda_handler.py`
   - Runs every hour at 30 minutes past (UTC)
-  - Downloads PDF from ESB Hydro
-  - Parses flow data using pdfplumber
-  - Stores: raw PDFs, parsed JSON, aggregated data in S3
+  - Downloads data from multiple sources:
+    - ESB Hydro PDFs (parsed with pdfplumber)
+    - waterlevel.ie CSV API (water level & temperature)
+  - Routes to appropriate parser based on source type
+  - Stores: raw files (PDF/CSV), parsed JSON, aggregated data in S3
 
 - **Data API Lambda**: `api/data_api.py`
-  - RESTful API for flow data
+  - RESTful API for river data (all stations)
   - Endpoints: `/api/flow/latest`, `/api/flow/history`
+  - Returns data from multiple stations with type differentiation
   - CORS enabled for web app
 
 ### Frontend (Vue.js 3)
@@ -42,7 +47,8 @@ EventBridge (Cron) → Lambda (Collector) → S3 (Data Storage)
 ```
 S3 Static Hosting → Vue.js SPA (Vite)
                     ↓
-        Components: FlowStatus, FlowChart
+        Components: FlowStatus, FlowChart,
+                    WaterLevelStatus, WaterLevelChart
                     ↓
               API Gateway (Backend)
 ```
@@ -51,9 +57,12 @@ S3 Static Hosting → Vue.js SPA (Vite)
 - **Framework**: Vue.js 3 with Composition API
 - **Build Tool**: Vite
 - **Styling**: Tailwind CSS
+- **Charting**: Chart.js via vue-chartjs
 - **Main Components**:
-  - `FlowStatus.vue`: Current flow display with color-coded status
-  - `FlowChart.vue`: Historical flow chart (24h, 7d, 30d, 90d views)
+  - `FlowStatus.vue`: Current flow display with color-coded status (Inniscarra)
+  - `FlowChart.vue`: Historical flow chart (24h, 7d, 30d views)
+  - `WaterLevelStatus.vue`: Water level & temperature display (Waterworks Weir)
+  - `WaterLevelChart.vue`: Separate charts for water level and temperature history
 
 ## Key Design Decisions
 
@@ -92,8 +101,10 @@ src/
 ├── lambda_handler.py          # Main data collector Lambda
 ├── config/settings.py         # Configuration management
 ├── connectors/http_connector.py  # HTTP downloads with retry
-├── parsers/esb_hydro_parser.py   # PDF parsing logic
-├── storage/s3_storage.py      # S3 operations
+├── parsers/
+│   ├── esb_hydro_parser.py    # ESB PDF parsing logic
+│   └── waterlevel_parser.py   # waterlevel.ie CSV parsing
+├── storage/s3_storage.py      # S3 operations (PDF & CSV support)
 └── utils/
     ├── logger.py              # Structured logging
     └── retry.py               # Exponential backoff
@@ -103,6 +114,7 @@ api/
 
 tests/
 ├── test_*.py                  # Unit tests (pytest)
+├── test_waterlevel_parser.py  # WaterLevelParser tests
 └── api/test_data_api.py       # API tests
 ```
 
@@ -110,10 +122,12 @@ tests/
 ```
 web/
 ├── src/
-│   ├── App.vue                # Main app component
+│   ├── App.vue                # Main app component (2-column layout)
 │   ├── components/
-│   │   ├── FlowStatus.vue     # Current flow display
-│   │   └── FlowChart.vue      # Historical chart
+│   │   ├── FlowStatus.vue     # Current flow display (Inniscarra)
+│   │   ├── FlowChart.vue      # Historical flow chart
+│   │   ├── WaterLevelStatus.vue  # Water level & temp display
+│   │   └── WaterLevelChart.vue   # Water level & temp charts
 │   ├── services/api.js        # API client
 │   └── utils/date.js          # Date formatting
 ├── .env                       # Environment config (GITIGNORED!)
@@ -217,15 +231,21 @@ make teardown ENV=production   # Delete CloudFormation stack (DANGER!)
 **S3 Data Structure**:
 ```
 river-data-ireland-prod/
-├── raw/                       # Original PDFs
-│   └── inniscarra/
-│       └── YYYYMMDD_HHMMSS.pdf
+├── raw/                       # Original files (PDF/CSV)
+│   ├── inniscarra/
+│   │   └── YYYY/MM/DD/inniscarra_flow_YYYYMMDD_HHMMSS.pdf
+│   └── lee_waterworks/
+│       └── YYYY/MM/DD/
+│           ├── lee_waterworks_level_YYYYMMDD_HHMMSS.csv
+│           └── lee_waterworks_temperature_YYYYMMDD_HHMMSS.csv
 ├── parsed/                    # Parsed JSON
-│   └── inniscarra/
-│       └── YYYYMMDD_HHMMSS.json
+│   ├── inniscarra/
+│   │   └── YYYY/MM/inniscarra_flow_YYYYMM.json.gz
+│   └── lee_waterworks/
+│       └── YYYY/MM/lee_waterworks_YYYYMM.json.gz
 └── aggregated/                # Latest data
     ├── inniscarra_latest.json
-    └── inniscarra_history.json
+    └── lee_waterworks_latest.json
 ```
 
 ### Cost Estimate
@@ -360,12 +380,14 @@ by bin(5m)
 
 ## Future Roadmap
 
-### Phase 3: Enhanced Data Collection
-- Add more river stations (multiple dams)
+### Phase 3: Enhanced Data Collection (🚧 In Progress)
+- ✅ Add waterlevel.ie integration (Waterworks Weir)
+- ✅ Water level and temperature data collection
+- ✅ Multi-station support in web app (side-by-side display)
+- Additional stations from waterlevel.ie network
 - Integrate weather data from Met Éireann
 - Correlate rainfall with flow data
 - Data validation and quality checks
-- Multi-station support in web app
 
 ### Phase 4: Advanced Features
 - User accounts and preferences
@@ -399,12 +421,15 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for:
 - GitHub: (will be added after initial push)
 
 ### Key Contacts
-- Data Source: ESB Hydro (http://www.esbhydro.ie/)
-- AWS Region: eu-west-1 (Ireland)
+- **Data Sources**:
+  - ESB Hydro: http://www.esbhydro.ie/ (flow data)
+  - waterlevel.ie: https://waterlevel.ie/ (water level & temperature, CC BY 4.0)
+  - Office of Public Works (OPW): Provides waterlevel.ie data
+- **AWS Region**: eu-west-1 (Ireland)
 
 ### Tech Stack Summary
-- **Backend**: Python 3.9, AWS Lambda, boto3, pdfplumber
-- **Frontend**: Vue.js 3, Vite, Tailwind CSS, Chart.js
+- **Backend**: Python 3.9, AWS Lambda, boto3, pdfplumber (PDF parsing), csv (CSV parsing)
+- **Frontend**: Vue.js 3, Vite, Tailwind CSS, Chart.js (vue-chartjs)
 - **Infrastructure**: AWS SAM, CloudFormation
 - **Storage**: Amazon S3
 - **API**: API Gateway (REST)
@@ -414,7 +439,7 @@ See [CONTRIBUTING.md](../CONTRIBUTING.md) for:
 ---
 
 **Last Updated**: December 6, 2024
-**Project Phase**: Phase 2 Complete (Data Collection + Web App)
-**Status**: Production Deployed & Running
+**Project Phase**: Phase 2 Complete, Phase 3 In Progress (Multi-Source Data Collection)
+**Status**: Production Deployed & Running with Multiple Data Sources
 
 **Generated with Claude Code** - Update this file as the project evolves!

@@ -1,6 +1,6 @@
 # Irish Rivers Data Scraper & River Guru Web App
 
-A low-cost, serverless system for aggregating water flow data from Irish rivers, starting with ESB Hydro's Inniscarra station on the River Lee.
+A low-cost, serverless system for aggregating water data from Irish rivers, including flow rates from ESB Hydro and water level/temperature data from waterlevel.ie.
 
 ## Screenshots
 
@@ -11,6 +11,7 @@ A low-cost, serverless system for aggregating water flow data from Irish rivers,
 ## Features
 
 ### Data Collection (✅ Complete)
+- **Multiple Data Sources**: ESB Hydro flow data (PDF) and waterlevel.ie water level/temperature (CSV API)
 - **Serverless Architecture**: Runs on AWS Lambda with minimal operating costs (<$5/month)
 - **Automatic Data Collection**: Scheduled hourly data scraping at 30 minutes past the hour
 - **Robust Error Handling**: Exponential backoff retry logic for transient failures
@@ -20,8 +21,10 @@ A low-cost, serverless system for aggregating water flow data from Irish rivers,
 
 ###  River Guru Web App (✅ Complete)
 - **Mobile-First Vue.js SPA**: Responsive single-page application
+- **Multi-Station Display**: Side-by-side view of Inniscarra flow and Waterworks Weir water level
 - **Real-Time Flow Display**: Current flow rate with color-coded status indicators
-- **Interactive Charts**: Historical flow data visualization (24h, 7d, 30d, 90d views)
+- **Water Level & Temperature**: Real-time water level and temperature monitoring
+- **Interactive Charts**: Historical data visualization (24h, 7d, 30d views)
 - **Hourly Data Collection**: Backend automatically collects data every hour at 30 minutes past
 - **AWS Hosted**: Static site on S3
 - **Integrated Deployment**: Single Makefile command deploys both backend and frontend
@@ -32,9 +35,10 @@ A low-cost, serverless system for aggregating water flow data from Irish rivers,
 ```
 EventBridge → Lambda (Python) → S3 Storage
     ↓              ↓                ↓
-  Hourly       PDF Scraper    - Raw PDFs
-  Trigger      + Retry        - Parsed JSON
-                               - Aggregated Data
+  Hourly       Parsers:         - Raw Files (PDF/CSV)
+  Trigger      • ESB PDF        - Parsed JSON
+               • Waterlevel.ie  - Aggregated Data
+               + Retry Logic
 ```
 
 ###  River Guru Web App
@@ -92,7 +96,8 @@ river-data-scraper/
 │   ├── connectors/
 │   │   └── http_connector.py     # HTTP download logic
 │   ├── parsers/
-│   │   └── esb_hydro_parser.py   # PDF parsing logic
+│   │   ├── esb_hydro_parser.py   # ESB PDF parsing logic
+│   │   └── waterlevel_parser.py  # waterlevel.ie CSV parsing
 │   ├── storage/
 │   │   └── s3_storage.py         # S3 operations
 │   └── utils/
@@ -109,7 +114,9 @@ river-data-scraper/
 │   │   ├── main.js               # Vue entry point
 │   │   ├── components/
 │   │   │   ├── FlowStatus.vue    # Current flow display
-│   │   │   └── FlowChart.vue     # Historical chart
+│   │   │   ├── FlowChart.vue     # Historical flow chart
+│   │   │   ├── WaterLevelStatus.vue  # Water level/temp display
+│   │   │   └── WaterLevelChart.vue   # Water level/temp charts
 │   │   ├── services/
 │   │   │   └── api.js            # API client
 │   │   └── utils/
@@ -216,14 +223,24 @@ Configure data sources using the `DATA_SOURCES_JSON` environment variable:
 [
   {
     "station_id": "inniscarra",
-    "name": "Inniscarra",
+    "name": "Inniscarra Dam",
     "river": "River Lee",
     "url": "http://www.esbhydro.ie/Lee/04-Inniscarra-Flow.pdf",
     "source_type": "pdf",
     "enabled": true
+  },
+  {
+    "station_id": "lee_waterworks",
+    "name": "Waterworks Weir",
+    "river": "River Lee",
+    "url": "http://waterlevel.ie/data/day/0000019102_{sensor}.csv",
+    "source_type": "api",
+    "enabled": true
   }
 ]
 ```
+
+**Note**: For waterlevel.ie stations, use `{sensor}` as a placeholder in the URL. The system will automatically fetch data for sensor 0001 (water level) and sensor 0002 (temperature).
 
 ## Usage
 
@@ -565,12 +582,14 @@ python -c "from src.lambda_handler import lambda_handler; ..."
 - [x] Integrated Makefile deployment (backend + frontend)
 - [x] Manual refresh for latest data (hourly backend collection)
 
-### Phase 3: Enhanced Data Collection
-- [ ] Additional river stations (multiple rivers and metrics)
+### Phase 3: Enhanced Data Collection (🚧 In Progress)
+- [x] Additional river stations - waterlevel.ie integration (Waterworks Weir)
+- [x] Water level and temperature data collection
+- [x] Multi-station support in web app
+- [ ] Additional stations from waterlevel.ie network
 - [ ] Weather data integration (Met Éireann)
 - [ ] Rainfall data correlation
 - [ ] Data validation and quality checks
-- [ ] Multi-station support in web app
 
 ### Phase 4: Advanced Features
 - [ ] User accounts and preferences
@@ -597,7 +616,14 @@ For commercial licensing inquiries, please contact the project maintainer.
 
 ## Acknowledgments
 
-- ESB Hydro for providing river flow data
-- AWS for serverless infrastructure
-- Open source community for excellent Python libraries
-- Claude Code for AI-assisted development and documentation
+- **ESB Hydro** for providing river flow data from Inniscarra Dam
+- **waterlevel.ie** for water level and temperature data (CC BY 4.0 license)
+  - Data from Office of Public Works (OPW) hydrometric monitoring stations
+  - Station 19102: Waterworks Weir, River Lee
+- **AWS** for serverless infrastructure
+- **Open source community** for excellent Python libraries (pdfplumber, boto3, axios, vue-chartjs)
+- **Claude Code** for AI-assisted development and documentation
+
+## Data Attribution
+
+This application uses water level and temperature data from [waterlevel.ie](https://waterlevel.ie/), provided by the Office of Public Works (OPW). The data is licensed under [CC BY 4.0](https://creativecommons.org/licenses/by/4.0/), which permits sharing and adaptation with appropriate credit.
