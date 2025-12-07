@@ -39,7 +39,7 @@
 
     <!-- Chart Display -->
     <div v-else>
-      <div class="chart-container" style="position: relative; height: 300px">
+      <div class="chart-container" style="position: relative; height: 300px; min-height: 250px">
         <Line :data="chartData" :options="chartOptions" />
       </div>
 
@@ -253,5 +253,17 @@ onMounted(() => {
 <style scoped>
 .chart-container {
   width: 100%;
+}
+
+@media (min-width: 768px) {
+  .chart-container {
+    height: 350px !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .chart-container {
+    height: 400px !important;
+  }
 }
 </style>

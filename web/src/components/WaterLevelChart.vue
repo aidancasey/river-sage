@@ -352,5 +352,19 @@ watch(() => props.stationId, () => {
 <style scoped>
 .chart-container {
   position: relative;
+  height: 300px;
+  min-height: 250px;
+}
+
+@media (min-width: 768px) {
+  .chart-container {
+    height: 350px !important;
+  }
+}
+
+@media (min-width: 1024px) {
+  .chart-container {
+    height: 400px !important;
+  }
 }
 </style>

@@ -61,28 +61,38 @@
 
       <!-- Information Cards -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <div class="card">
-          <div class="text-3xl mb-3">📊</div>
-          <h3 class="text-lg font-semibold text-gray-800 mb-2">Flow Levels</h3>
-          <ul class="text-sm text-gray-600 space-y-1">
-            <li><span class="text-blue-600 font-medium">Low:</span> &lt; 5 m³/s</li>
-            <li><span class="text-green-600 font-medium">Normal:</span> 6-20 m³/s</li>
-            <li><span class="text-amber-600 font-medium">High:</span> 30-60 m³/s</li>
-            <li><span class="text-red-600 font-medium">Very High:</span> &gt; 100 m³/s</li>
-          </ul>
+        <!-- Dynamic Card 1: Flow or Water Level info -->
+        <div class="card animate-fade-in">
+          <div class="text-3xl mb-3">{{ hasFlowStation ? '📊' : '💧' }}</div>
+          <h3 class="text-lg font-semibold text-gray-800 mb-2">
+            {{ hasFlowStation ? 'Flow Levels' : 'Water Levels' }}
+          </h3>
+          <div v-if="hasFlowStation">
+            <ul class="text-sm text-gray-600 space-y-1">
+              <li><span class="text-blue-600 font-medium">Low:</span> &lt; 5 m³/s</li>
+              <li><span class="text-green-600 font-medium">Normal:</span> 6-20 m³/s</li>
+              <li><span class="text-amber-600 font-medium">High:</span> 30-60 m³/s</li>
+              <li><span class="text-red-600 font-medium">Very High:</span> &gt; 100 m³/s</li>
+            </ul>
+          </div>
+          <div v-else>
+            <p class="text-sm text-gray-600">
+              Water levels are measured in meters (m) and updated every 15 minutes. Temperature readings (°C) are recorded hourly.
+            </p>
+          </div>
         </div>
 
-        <div class="card">
+        <div class="card animate-fade-in" style="animation-delay: 0.1s">
           <div class="text-3xl mb-3">⏱️</div>
           <h3 class="text-lg font-semibold text-gray-800 mb-2">Data Updates</h3>
           <p class="text-sm text-gray-600">
-            Data is collected automatically every hour. Water levels update every 15 minutes, temperature hourly. Refresh to see latest data.
+            Data refreshes automatically every 15 minutes. Historical data is collected hourly. Click the refresh button on any station for the latest readings.
           </p>
         </div>
 
-        <div class="card">
+        <div class="card animate-fade-in" style="animation-delay: 0.2s">
           <div class="text-3xl mb-3">📍</div>
-          <h3 class="text-lg font-semibold text-gray-800 mb-2">About</h3>
+          <h3 class="text-lg font-semibold text-gray-800 mb-2">About {{ currentRiverConfig.name }}</h3>
           <p class="text-sm text-gray-600">
             {{ currentRiverConfig.info }}
           </p>
@@ -169,8 +179,16 @@ const rivers = [
   { id: 'owenboy', name: 'River Owenboy', icon: '💧', stationCount: 1 }
 ];
 
+// Initialize selected river from URL or default to 'lee'
+const getInitialRiver = () => {
+  const params = new URLSearchParams(window.location.search);
+  const riverParam = params.get('river');
+  // Validate river exists in config
+  return riverParam && riverConfigs[riverParam] ? riverParam : 'lee';
+};
+
 // Selected river state
-const selectedRiver = ref('lee');
+const selectedRiver = ref(getInitialRiver());
 
 // Computed properties
 const currentRiverConfig = computed(() => riverConfigs[selectedRiver.value]);
@@ -183,11 +201,24 @@ const waterLevelStations = computed(() =>
   currentRiverConfig.value.stations.filter(s => s.type === 'water_level')
 );
 
+const hasFlowStation = computed(() => flowStations.value.length > 0);
+
 // Methods
 function selectRiver(riverId) {
   selectedRiver.value = riverId;
+
+  // Update URL without page reload
+  const url = new URL(window.location);
+  url.searchParams.set('river', riverId);
+  window.history.pushState({}, '', url);
+
   window.scrollTo({ top: 0, behavior: 'smooth' });
 }
+
+// Handle browser back/forward buttons
+window.addEventListener('popstate', () => {
+  selectedRiver.value = getInitialRiver();
+});
 </script>
 
 <style>
