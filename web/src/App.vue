@@ -3,17 +3,11 @@
     <!-- Header -->
     <header class="bg-white shadow-sm border-b border-gray-200">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center">
-            <div class="text-3xl mr-3">🌊</div>
-            <div>
-              <h1 class="text-2xl font-bold text-gray-900">River Guru</h1>
-              <p class="text-sm text-gray-600">Irish Rivers Monitoring</p>
-            </div>
-          </div>
-          <div class="hidden sm:block text-right">
-            <p class="text-xs text-gray-500">Real-time data from</p>
-            <p class="text-sm font-medium text-gray-700">ESB Hydro & waterlevel.ie</p>
+        <div class="flex items-center">
+          <img src="/guru-icon.png" alt="River Guru" class="w-12 h-12 mr-3" />
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">River Guru</h1>
+            <p class="text-sm text-gray-600">Irish Rivers Monitoring</p>
           </div>
         </div>
       </div>
@@ -74,38 +68,9 @@
         </div>
       </div>
 
-      <!-- Information Cards -->
-      <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
-        <!-- Dynamic Card 1: Flow or Water Level info -->
+      <!-- Information Card -->
+      <div class="max-w-2xl mx-auto mb-8">
         <div class="card animate-fade-in">
-          <div class="text-3xl mb-3">{{ hasFlowStation ? '📊' : '💧' }}</div>
-          <h3 class="text-lg font-semibold text-gray-800 mb-2">
-            {{ hasFlowStation ? 'Flow Levels' : 'Water Levels' }}
-          </h3>
-          <div v-if="hasFlowStation">
-            <ul class="text-sm text-gray-600 space-y-1">
-              <li><span class="text-blue-600 font-medium">Low:</span> &lt; 5 m³/s</li>
-              <li><span class="text-green-600 font-medium">Normal:</span> 6-20 m³/s</li>
-              <li><span class="text-amber-600 font-medium">High:</span> 30-60 m³/s</li>
-              <li><span class="text-red-600 font-medium">Very High:</span> &gt; 100 m³/s</li>
-            </ul>
-          </div>
-          <div v-else>
-            <p class="text-sm text-gray-600">
-              Water levels are measured in meters (m) and updated every 15 minutes. Temperature readings (°C) are recorded hourly.
-            </p>
-          </div>
-        </div>
-
-        <div class="card animate-fade-in" style="animation-delay: 0.1s">
-          <div class="text-3xl mb-3">⏱️</div>
-          <h3 class="text-lg font-semibold text-gray-800 mb-2">Data Updates</h3>
-          <p class="text-sm text-gray-600">
-            Data refreshes automatically every 15 minutes. Historical data is collected hourly. Click the refresh button on any station for the latest readings.
-          </p>
-        </div>
-
-        <div class="card animate-fade-in" style="animation-delay: 0.2s">
           <div class="text-3xl mb-3">📍</div>
           <h3 class="text-lg font-semibold text-gray-800 mb-2">About {{ currentRiverConfig.name }}</h3>
           <p class="text-sm text-gray-600">
@@ -279,8 +244,6 @@ const flowStations = computed(() =>
 const waterLevelStations = computed(() =>
   currentRiverConfig.value.stations.filter(s => s.type === 'water_level')
 );
-
-const hasFlowStation = computed(() => flowStations.value.length > 0);
 
 const totalStations = computed(() =>
   flowStations.value.length + waterLevelStations.value.length
