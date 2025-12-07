@@ -93,7 +93,15 @@ def handle_latest_flow(event: Dict[str, Any]) -> Dict[str, Any]:
         logger.info(f"Fetching latest data (filter: {station_filter or 'all'})")
 
         # List of all stations to fetch
-        stations = ['inniscarra', 'lee_waterworks']
+        stations = [
+            'inniscarra',
+            'lee_waterworks',
+            'blackwater_fermoy',
+            'blackwater_mallow',
+            'suir_golden',
+            'owenboy',
+            'bandon_curranure'
+        ]
 
         # Apply filter if specified
         if station_filter:
