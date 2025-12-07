@@ -3,11 +3,18 @@
     <!-- Header -->
     <header class="bg-white shadow-sm border-b border-gray-200">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div class="flex items-center">
-          <img src="/guru-icon.png" alt="River Guru" class="w-12 h-12 mr-3" />
-          <div>
-            <h1 class="text-2xl font-bold text-gray-900">River Guru</h1>
-            <p class="text-sm text-gray-600">Irish Rivers Monitoring</p>
+        <div class="flex items-center justify-between">
+          <div class="flex items-center">
+            <img src="/guru-icon.png" alt="River Guru" class="w-12 h-12 mr-3" />
+            <div>
+              <h1 class="text-2xl font-bold text-gray-900">River Guru</h1>
+              <p class="text-sm text-gray-600">Irish Rivers Monitoring</p>
+            </div>
+          </div>
+          <div class="hidden md:block max-w-md">
+            <div class="text-sm italic text-gray-600 text-right">
+              <span class="text-blue-600">"</span>{{ currentQuote }}<span class="text-blue-600">"</span>
+            </div>
           </div>
         </div>
       </div>
@@ -156,7 +163,7 @@
 </template>
 
 <script setup>
-import { ref, computed } from 'vue';
+import { ref, computed, onMounted, onUnmounted } from 'vue';
 import FlowStatus from './components/FlowStatus.vue';
 import FlowChart from './components/FlowChart.vue';
 import WaterLevelStatus from './components/WaterLevelStatus.vue';
@@ -164,6 +171,44 @@ import WaterLevelChart from './components/WaterLevelChart.vue';
 import RiverSelector from './components/RiverSelector.vue';
 import SunTimes from './components/SunTimes.vue';
 import WeatherForecast from './components/WeatherForecast.vue';
+
+// River Guru quotes - fun and enlightening wisdom for fly fishermen
+const guruQuotes = [
+  "The river reveals its secrets only to those who know when to watch and when to cast",
+  "High water brings the big fish, but patience brings the catch",
+  "A wise angler reads the water before reading the hatch",
+  "The moon phase whispers to the fish what the wind shouts to the angler",
+  "Temperature tells the tale - cold slows them down, warmth wakes them up",
+  "When the river rises, so do your chances",
+  "Match the hatch, but first match the conditions",
+  "The best time to fish is when the data says go, but you're already there",
+  "Low and clear? Think small and precise. High and coloured? Go big and bold",
+  "Dawn and dusk are golden hours, but know the water before you worship the clock",
+  "A fly fisherman without knowledge of water levels is like a boat without a paddle",
+  "The river doesn't lie - it shows you everything if you learn its language",
+  "When others see obstacles, the wise angler sees holding water",
+  "Sun times matter - fish the shadows when the sun is high",
+  "Every river has its rhythm - learn to dance with the flow"
+];
+
+// Current quote state
+const currentQuoteIndex = ref(0);
+const currentQuote = computed(() => guruQuotes[currentQuoteIndex.value]);
+
+// Rotate quote every 10 seconds
+let quoteInterval;
+
+onMounted(() => {
+  quoteInterval = setInterval(() => {
+    currentQuoteIndex.value = (currentQuoteIndex.value + 1) % guruQuotes.length;
+  }, 10000);
+});
+
+onUnmounted(() => {
+  if (quoteInterval) {
+    clearInterval(quoteInterval);
+  }
+});
 
 // River configurations
 const riverConfigs = {
