@@ -38,8 +38,11 @@
         </p>
       </div>
 
-      <!-- Station Grid -->
-      <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
+      <!-- Station Grid - Dynamic layout based on station count -->
+      <div
+        class="gap-8 mb-8"
+        :class="totalStations === 1 ? 'max-w-4xl mx-auto' : 'grid grid-cols-1 lg:grid-cols-2'"
+      >
         <!-- Flow Station (Inniscarra Dam only) -->
         <div v-for="station in flowStations" :key="station.id">
           <h3 class="text-lg font-semibold text-gray-800 mb-4">{{ station.name }} - Flow Rate</h3>
@@ -62,7 +65,10 @@
       <!-- Sun Times and Weather Section -->
       <div class="mb-8">
         <h2 class="text-xl font-bold text-gray-800 mb-6 text-center">Local Conditions</h2>
-        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl mx-auto">
+        <div
+          class="gap-6 mx-auto"
+          :class="totalStations === 1 ? 'grid grid-cols-1 md:grid-cols-2 max-w-4xl' : 'grid grid-cols-1 lg:grid-cols-2 max-w-5xl'"
+        >
           <SunTimes :river-id="selectedRiver" />
           <WeatherForecast :river-id="selectedRiver" />
         </div>
@@ -275,6 +281,10 @@ const waterLevelStations = computed(() =>
 );
 
 const hasFlowStation = computed(() => flowStations.value.length > 0);
+
+const totalStations = computed(() =>
+  flowStations.value.length + waterLevelStations.value.length
+);
 
 // Methods
 function selectRiver(riverId) {
