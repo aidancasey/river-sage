@@ -171,6 +171,46 @@ Resources:
                 "url": "https://waterlevel.ie/data/day/19102_{sensor}.csv",
                 "source_type": "api",
                 "enabled": true
+              },
+              {
+                "station_id": "blackwater_fermoy",
+                "name": "Fermoy Town",
+                "river": "River Blackwater",
+                "url": "https://waterlevel.ie/data/day/18106_{sensor}.csv",
+                "source_type": "api",
+                "enabled": true
+              },
+              {
+                "station_id": "blackwater_mallow",
+                "name": "Mallow Railway Bridge",
+                "river": "River Blackwater",
+                "url": "https://waterlevel.ie/data/day/18055_{sensor}.csv",
+                "source_type": "api",
+                "enabled": true
+              },
+              {
+                "station_id": "suir_golden",
+                "name": "New Bridge (Golden)",
+                "river": "River Suir",
+                "url": "https://waterlevel.ie/data/day/16008_{sensor}.csv",
+                "source_type": "api",
+                "enabled": true
+              },
+              {
+                "station_id": "owenboy",
+                "name": "Owenboy",
+                "river": "River Owenboy",
+                "url": "https://waterlevel.ie/data/day/19001_{sensor}.csv",
+                "source_type": "api",
+                "enabled": true
+              },
+              {
+                "station_id": "bandon_curranure",
+                "name": "Curranure",
+                "river": "River Bandon",
+                "url": "https://waterlevel.ie/data/day/20002_{sensor}.csv",
+                "source_type": "api",
+                "enabled": true
               }
             ]
       Events:

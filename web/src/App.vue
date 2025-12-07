@@ -8,7 +8,7 @@
             <div class="text-3xl mr-3">🌊</div>
             <div>
               <h1 class="text-2xl font-bold text-gray-900">River Guru</h1>
-              <p class="text-sm text-gray-600">Irish Rivers Flow Monitoring</p>
+              <p class="text-sm text-gray-600">Irish Rivers Monitoring</p>
             </div>
           </div>
           <div class="hidden sm:block text-right">
@@ -21,33 +21,40 @@
 
     <!-- Main Content -->
     <main class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-8">
-      <!-- Introduction -->
+      <!-- River Selector -->
+      <RiverSelector
+        :selected-river="selectedRiver"
+        :rivers="rivers"
+        @select-river="selectRiver"
+      />
+
+      <!-- River Title -->
       <div class="mb-8 text-center">
-        <h2 class="text-xl font-semibold text-gray-800 mb-2">
-          River Lee Monitoring
+        <h2 class="text-2xl font-bold text-gray-800 mb-2">
+          {{ currentRiverConfig.name }}
         </h2>
         <p class="text-gray-600 max-w-2xl mx-auto">
-          Monitor real-time water flow, water level, and temperature data from multiple stations on the River Lee, Cork, Ireland.
+          {{ currentRiverConfig.description }}
         </p>
       </div>
 
       <!-- Station Grid -->
       <div class="grid grid-cols-1 lg:grid-cols-2 gap-8 mb-8">
-        <!-- Inniscarra Dam Flow -->
-        <div>
-          <h3 class="text-lg font-semibold text-gray-800 mb-4">Inniscarra Dam - Flow Rate</h3>
-          <FlowStatus station-id="inniscarra" />
+        <!-- Flow Station (Inniscarra Dam only) -->
+        <div v-for="station in flowStations" :key="station.id">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">{{ station.name }} - Flow Rate</h3>
+          <FlowStatus :station-id="station.id" />
           <div class="mt-4">
-            <FlowChart station-id="inniscarra" />
+            <FlowChart :station-id="station.id" />
           </div>
         </div>
 
-        <!-- Waterworks Weir - Water Level & Temperature -->
-        <div>
-          <h3 class="text-lg font-semibold text-gray-800 mb-4">Waterworks Weir - Water Level & Temperature</h3>
-          <WaterLevelStatus station-id="lee_waterworks" />
+        <!-- Water Level Stations -->
+        <div v-for="station in waterLevelStations" :key="station.id">
+          <h3 class="text-lg font-semibold text-gray-800 mb-4">{{ station.name }} - Water Level & Temperature</h3>
+          <WaterLevelStatus :station-id="station.id" />
           <div class="mt-4">
-            <WaterLevelChart station-id="lee_waterworks" />
+            <WaterLevelChart :station-id="station.id" />
           </div>
         </div>
       </div>
@@ -69,15 +76,15 @@
           <div class="text-3xl mb-3">⏱️</div>
           <h3 class="text-lg font-semibold text-gray-800 mb-2">Data Updates</h3>
           <p class="text-sm text-gray-600">
-            Flow data is collected automatically every hour at 30 minutes past the hour from ESB Hydro. Refresh the page to see the latest data.
+            Data is collected automatically every hour. Water levels update every 15 minutes, temperature hourly. Refresh to see latest data.
           </p>
         </div>
 
         <div class="card">
           <div class="text-3xl mb-3">📍</div>
-          <h3 class="text-lg font-semibold text-gray-800 mb-2">Location</h3>
+          <h3 class="text-lg font-semibold text-gray-800 mb-2">About</h3>
           <p class="text-sm text-gray-600">
-            Inniscarra Dam is located on the River Lee, approximately 10km west of Cork City. It's a key hydroelectric facility in Ireland.
+            {{ currentRiverConfig.info }}
           </p>
         </div>
       </div>
@@ -88,7 +95,7 @@
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
         <div class="text-center text-sm text-gray-500">
           <p class="mb-1">
-            Data sourced from ESB Hydro and waterlevel.ie | Updates hourly at 30 minutes past the hour
+            Data sourced from ESB Hydro and waterlevel.ie | Updates hourly
           </p>
           <p class="text-xs">
             Water level data from Office of Public Works (OPW) via waterlevel.ie (CC BY 4.0)
@@ -100,10 +107,87 @@
 </template>
 
 <script setup>
+import { ref, computed } from 'vue';
 import FlowStatus from './components/FlowStatus.vue';
 import FlowChart from './components/FlowChart.vue';
 import WaterLevelStatus from './components/WaterLevelStatus.vue';
 import WaterLevelChart from './components/WaterLevelChart.vue';
+import RiverSelector from './components/RiverSelector.vue';
+
+// River configurations
+const riverConfigs = {
+  lee: {
+    name: 'River Lee',
+    description: 'Monitor water flow, levels, and temperature from multiple stations on the River Lee, Cork, Ireland.',
+    info: 'The River Lee flows through Cork City and is monitored at Inniscarra Dam and Waterworks Weir.',
+    stations: [
+      { id: 'inniscarra', name: 'Inniscarra Dam', type: 'flow' },
+      { id: 'lee_waterworks', name: 'Waterworks Weir', type: 'water_level' }
+    ]
+  },
+  blackwater: {
+    name: 'River Blackwater',
+    description: 'Real-time water level and temperature monitoring at Fermoy and Mallow on the River Blackwater.',
+    info: 'The Blackwater is one of Ireland\'s premier salmon rivers, flowing through Counties Cork and Waterford.',
+    stations: [
+      { id: 'blackwater_fermoy', name: 'Fermoy Town', type: 'water_level' },
+      { id: 'blackwater_mallow', name: 'Mallow Railway Bridge', type: 'water_level' }
+    ]
+  },
+  suir: {
+    name: 'River Suir',
+    description: 'Water level and temperature data from the New Bridge monitoring station near Golden, Co. Tipperary.',
+    info: 'The River Suir flows through the Golden Vale, one of Ireland\'s most fertile agricultural regions.',
+    stations: [
+      { id: 'suir_golden', name: 'New Bridge (Golden)', type: 'water_level' }
+    ]
+  },
+  bandon: {
+    name: 'River Bandon',
+    description: 'Monitor water levels and temperature at Curranure on the River Bandon, West Cork.',
+    info: 'The River Bandon flows through West Cork to Kinsale harbour, supporting diverse wildlife habitats.',
+    stations: [
+      { id: 'bandon_curranure', name: 'Curranure', type: 'water_level' }
+    ]
+  },
+  owenboy: {
+    name: 'River Owenboy',
+    description: 'Real-time water level and temperature monitoring on the River Owenboy.',
+    info: 'The River Owenboy is a tributary river system in County Cork.',
+    stations: [
+      { id: 'owenboy', name: 'Owenboy', type: 'water_level' }
+    ]
+  }
+};
+
+// River list for selector
+const rivers = [
+  { id: 'lee', name: 'River Lee', icon: '🌊', stationCount: 2 },
+  { id: 'blackwater', name: 'River Blackwater', icon: '🏞️', stationCount: 2 },
+  { id: 'suir', name: 'River Suir', icon: '⛰️', stationCount: 1 },
+  { id: 'bandon', name: 'River Bandon', icon: '🌲', stationCount: 1 },
+  { id: 'owenboy', name: 'River Owenboy', icon: '💧', stationCount: 1 }
+];
+
+// Selected river state
+const selectedRiver = ref('lee');
+
+// Computed properties
+const currentRiverConfig = computed(() => riverConfigs[selectedRiver.value]);
+
+const flowStations = computed(() =>
+  currentRiverConfig.value.stations.filter(s => s.type === 'flow')
+);
+
+const waterLevelStations = computed(() =>
+  currentRiverConfig.value.stations.filter(s => s.type === 'water_level')
+);
+
+// Methods
+function selectRiver(riverId) {
+  selectedRiver.value = riverId;
+  window.scrollTo({ top: 0, behavior: 'smooth' });
+}
 </script>
 
 <style>
