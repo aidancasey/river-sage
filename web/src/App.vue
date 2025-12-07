@@ -59,6 +59,14 @@
         </div>
       </div>
 
+      <!-- Sun Times Section -->
+      <div class="mb-8">
+        <h2 class="text-xl font-bold text-gray-800 mb-4 text-center">Sunrise & Sunset Times</h2>
+        <div class="max-w-md mx-auto">
+          <SunTimes :river-id="selectedRiver" />
+        </div>
+      </div>
+
       <!-- Information Cards -->
       <div class="grid grid-cols-1 md:grid-cols-3 gap-6 mb-8">
         <!-- Dynamic Card 1: Flow or Water Level info -->
@@ -182,6 +190,7 @@ import FlowChart from './components/FlowChart.vue';
 import WaterLevelStatus from './components/WaterLevelStatus.vue';
 import WaterLevelChart from './components/WaterLevelChart.vue';
 import RiverSelector from './components/RiverSelector.vue';
+import SunTimes from './components/SunTimes.vue';
 
 // River configurations
 const riverConfigs = {
