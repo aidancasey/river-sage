@@ -110,7 +110,7 @@
 </template>
 
 <script setup>
-import { ref, computed, onMounted } from 'vue';
+import { ref, computed, onMounted, watch } from 'vue';
 import { getSunTimesTodayAndTomorrow } from '../services/sunTimes';
 import { useAutoRefresh } from '../composables/useAutoRefresh';
 
@@ -153,6 +153,11 @@ async function fetchData() {
     loading.value = false;
   }
 }
+
+// Watch for river changes
+watch(() => props.riverId, () => {
+  fetchData();
+});
 
 // Auto-refresh once per day (24 hours)
 const { lastRefreshTime } = useAutoRefresh(fetchData, 24 * 60 * 60 * 1000);
