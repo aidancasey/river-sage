@@ -11,7 +11,7 @@
         class="block w-full px-4 py-3 pr-10 text-base border-gray-300 focus:outline-none focus:ring-blue-500 focus:border-blue-500 rounded-lg shadow-sm bg-white cursor-pointer"
       >
         <option v-for="river in rivers" :key="river.id" :value="river.id">
-          {{ river.icon }} {{ river.name }} ({{ river.stationCount }} station{{ river.stationCount > 1 ? 's' : '' }})
+          {{ river.name }} ({{ river.stationCount }} station{{ river.stationCount > 1 ? 's' : '' }})
         </option>
       </select>
       <div class="pointer-events-none absolute inset-y-0 right-0 flex items-center px-3 pt-7 text-gray-700">

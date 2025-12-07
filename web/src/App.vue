@@ -7,7 +7,7 @@
           <img src="/guru-icon.png" alt="River Guru" class="w-12 h-12 mr-3" />
           <div>
             <h1 class="text-2xl font-bold text-gray-900">River Guru</h1>
-            <p class="text-sm text-gray-600">Irish Rivers Monitoring</p>
+            <p class="text-sm text-gray-600">Your Guide to Irish River Conditions</p>
           </div>
         </div>
       </div>
@@ -47,11 +47,8 @@
         </div>
       </div>
 
-      <!-- Station Grid - Dynamic layout based on station count -->
-      <div
-        class="gap-8 mb-8"
-        :class="totalStations === 1 ? 'max-w-4xl mx-auto' : 'grid grid-cols-1 lg:grid-cols-2'"
-      >
+      <!-- Station Grid - All stations in single column for better readability -->
+      <div class="max-w-6xl mx-auto space-y-8 mb-8">
         <!-- Flow Station (Inniscarra Dam only) -->
         <div v-for="station in flowStations" :key="station.id">
           <h3 class="text-lg font-semibold text-gray-800 mb-4">{{ station.name }} - Flow Rate</h3>
@@ -74,17 +71,14 @@
       <!-- Sun Times and Weather Section -->
       <div class="mb-8">
         <h2 class="text-xl font-bold text-gray-800 mb-6 text-center">Local Conditions</h2>
-        <div
-          class="gap-6 mx-auto"
-          :class="totalStations === 1 ? 'grid grid-cols-1 md:grid-cols-2 max-w-4xl' : 'grid grid-cols-1 lg:grid-cols-2 max-w-5xl'"
-        >
+        <div class="grid grid-cols-1 md:grid-cols-2 gap-6 max-w-6xl mx-auto">
           <SunTimes :river-id="selectedRiver" />
           <WeatherForecast :river-id="selectedRiver" />
         </div>
       </div>
 
       <!-- Information Card -->
-      <div class="max-w-2xl mx-auto mb-8">
+      <div class="max-w-6xl mx-auto mb-8">
         <div class="card animate-fade-in">
           <div class="text-3xl mb-3">📍</div>
           <h3 class="text-lg font-semibold text-gray-800 mb-2">About {{ currentRiverConfig.name }}</h3>
@@ -127,12 +121,12 @@
           </div>
 
           <div class="text-sm text-gray-500">
-            <p class="mb-1">
-              Data sourced from ESB Hydro and waterlevel.ie | Updates hourly
-            </p>
-            <p class="text-xs">
-              Water level data from Office of Public Works (OPW) via waterlevel.ie (CC BY 4.0)
-            </p>
+            <button
+              @click="openDataSources"
+              class="text-blue-600 hover:underline"
+            >
+              View Data Sources & Attribution
+            </button>
           </div>
         </div>
       </div>
@@ -167,6 +161,31 @@
         </div>
       </div>
     </div>
+
+    <!-- Data Sources Modal -->
+    <div
+      v-if="showDataSources"
+      class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      @click.self="closeDataSources"
+    >
+      <div class="bg-white rounded-lg shadow-xl max-w-5xl w-full max-h-[90vh] overflow-hidden animate-fade-in">
+        <div class="flex items-center justify-between p-4 border-b border-gray-200">
+          <h2 class="text-xl font-bold text-gray-800">Data Sources</h2>
+          <button
+            @click="closeDataSources"
+            class="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            title="Close"
+          >
+            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="overflow-y-auto" style="height: calc(90vh - 80px)">
+          <DataSources @close="closeDataSources" />
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -179,6 +198,7 @@ import WaterLevelChart from './components/WaterLevelChart.vue';
 import RiverSelector from './components/RiverSelector.vue';
 import SunTimes from './components/SunTimes.vue';
 import WeatherForecast from './components/WeatherForecast.vue';
+import DataSources from './components/DataSources.vue';
 
 // River Guru quotes - fun and enlightening wisdom for fly fishermen
 const guruQuotes = [
@@ -284,8 +304,9 @@ const getInitialRiver = () => {
 // Selected river state
 const selectedRiver = ref(getInitialRiver());
 
-// Contact form modal state
+// Modal state
 const showContactForm = ref(false);
+const showDataSources = ref(false);
 
 // Computed properties
 const currentRiverConfig = computed(() => riverConfigs[selectedRiver.value]);
@@ -296,10 +317,6 @@ const flowStations = computed(() =>
 
 const waterLevelStations = computed(() =>
   currentRiverConfig.value.stations.filter(s => s.type === 'water_level')
-);
-
-const totalStations = computed(() =>
-  flowStations.value.length + waterLevelStations.value.length
 );
 
 // Methods
@@ -322,6 +339,18 @@ function openContactForm() {
 
 function closeContactForm() {
   showContactForm.value = false;
+  // Restore body scroll
+  document.body.style.overflow = '';
+}
+
+function openDataSources() {
+  showDataSources.value = true;
+  // Prevent body scroll when modal is open
+  document.body.style.overflow = 'hidden';
+}
+
+function closeDataSources() {
+  showDataSources.value = false;
   // Restore body scroll
   document.body.style.overflow = '';
 }

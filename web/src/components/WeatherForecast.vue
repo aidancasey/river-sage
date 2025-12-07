@@ -75,9 +75,36 @@
         </div>
       </div>
 
+      <!-- Forecast Tabs -->
+      <div class="mb-4">
+        <div class="flex gap-2 border-b border-gray-200">
+          <button
+            @click="activeTab = 'daily'"
+            :class="[
+              'px-4 py-2 font-medium text-sm transition-colors',
+              activeTab === 'daily'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-800'
+            ]"
+          >
+            7-Day Forecast
+          </button>
+          <button
+            @click="activeTab = 'hourly'"
+            :class="[
+              'px-4 py-2 font-medium text-sm transition-colors',
+              activeTab === 'hourly'
+                ? 'text-blue-600 border-b-2 border-blue-600'
+                : 'text-gray-600 hover:text-gray-800'
+            ]"
+          >
+            24-Hour Forecast
+          </button>
+        </div>
+      </div>
+
       <!-- 7-Day Forecast -->
-      <div>
-        <h4 class="text-sm font-semibold text-gray-700 mb-3">7-Day Forecast</h4>
+      <div v-if="activeTab === 'daily'">
         <div class="grid grid-cols-3 md:grid-cols-7 gap-2">
           <div
             v-for="(day, index) in weatherData.daily"
@@ -97,6 +124,39 @@
             <div class="flex items-center justify-center gap-1 text-xs text-blue-600">
               <span>💧</span>
               <span>{{ day.precipitationProbability }}%</span>
+            </div>
+          </div>
+        </div>
+      </div>
+
+      <!-- 24-Hour Forecast -->
+      <div v-else-if="activeTab === 'hourly'" class="max-h-96 overflow-y-auto">
+        <div class="space-y-2">
+          <div
+            v-for="(hour, index) in weatherData.hourly"
+            :key="index"
+            class="bg-gray-50 rounded-lg p-3 hover:bg-gray-100 transition-colors"
+          >
+            <div class="flex items-center justify-between">
+              <div class="flex items-center gap-3">
+                <div class="text-sm font-medium text-gray-700 w-16">
+                  {{ formatHourTime(hour.time) }}
+                </div>
+                <div class="text-2xl">{{ hour.weatherIcon }}</div>
+                <div class="text-lg font-bold text-gray-800">
+                  {{ hour.temperature.toFixed(1) }}°C
+                </div>
+              </div>
+              <div class="flex items-center gap-4 text-sm">
+                <div class="flex items-center gap-1 text-blue-600">
+                  <span>💧</span>
+                  <span>{{ hour.precipitationProbability }}%</span>
+                </div>
+                <div class="flex items-center gap-1 text-gray-600">
+                  <span>💨</span>
+                  <span>{{ hour.windSpeed.toFixed(0) }} km/h</span>
+                </div>
+              </div>
             </div>
           </div>
         </div>
@@ -147,12 +207,22 @@ const props = defineProps({
 const weatherData = ref(null);
 const loading = ref(true);
 const error = ref(null);
+const activeTab = ref('daily'); // 'daily' or 'hourly'
 
 // Computed properties
 const locationName = computed(() => {
   if (!weatherData.value) return '';
   return weatherData.value.location || '';
 });
+
+// Helper methods
+function formatHourTime(timeStr) {
+  const date = new Date(timeStr);
+  const hours = date.getHours();
+  const ampm = hours >= 12 ? 'PM' : 'AM';
+  const displayHours = hours % 12 || 12;
+  return `${displayHours}:00 ${ampm}`;
+}
 
 // Methods
 async function fetchData() {
