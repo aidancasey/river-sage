@@ -100,10 +100,42 @@
         </div>
       </div>
 
-      <!-- Day Length -->
-      <div class="pt-4 border-t border-gray-200 mt-6 text-center">
-        <p class="text-sm text-gray-500 mb-1">Day Length</p>
-        <p class="text-lg font-bold text-blue-600">{{ currentData.dayLength }}</p>
+      <!-- Day Length and Moon Phase -->
+      <div class="pt-4 border-t border-gray-200 mt-6">
+        <div class="grid grid-cols-2 gap-4">
+          <!-- Day Length -->
+          <div class="text-center">
+            <p class="text-sm text-gray-500 mb-1">Day Length</p>
+            <p class="text-lg font-bold text-blue-600">{{ currentData.dayLength }}</p>
+          </div>
+
+          <!-- Moon Phase -->
+          <div v-if="sunData?.moonPhase" class="text-center">
+            <p class="text-sm text-gray-500 mb-1">Moon Phase</p>
+            <div class="flex items-center justify-center gap-2">
+              <span class="text-2xl">{{ sunData.moonPhase.phaseIcon }}</span>
+              <span class="text-sm font-bold text-gray-800">{{ sunData.moonPhase.phaseName }}</span>
+            </div>
+          </div>
+        </div>
+
+        <!-- Moon Phase Details -->
+        <div v-if="sunData?.moonPhase" class="mt-4 pt-4 border-t border-gray-200">
+          <div class="text-center">
+            <p class="text-xs text-gray-600 mb-2">{{ sunData.moonPhase.phaseDescription }}</p>
+            <div class="flex items-center justify-center gap-2">
+              <div class="flex-1 bg-gray-200 rounded-full h-2">
+                <div
+                  class="bg-blue-500 h-2 rounded-full transition-all duration-300"
+                  :style="{ width: sunData.moonPhase.illumination.toFixed(0) + '%' }"
+                ></div>
+              </div>
+              <span class="text-xs font-medium text-gray-600">
+                {{ sunData.moonPhase.illumination.toFixed(0) }}% illuminated
+              </span>
+            </div>
+          </div>
+        </div>
       </div>
     </div>
   </div>
