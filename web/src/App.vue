@@ -59,11 +59,12 @@
         </div>
       </div>
 
-      <!-- Sun Times Section -->
+      <!-- Sun Times and Weather Section -->
       <div class="mb-8">
-        <h2 class="text-xl font-bold text-gray-800 mb-4 text-center">Sunrise & Sunset Times</h2>
-        <div class="max-w-md mx-auto">
+        <h2 class="text-xl font-bold text-gray-800 mb-6 text-center">Local Conditions</h2>
+        <div class="grid grid-cols-1 lg:grid-cols-2 gap-6 max-w-5xl mx-auto">
           <SunTimes :river-id="selectedRiver" />
+          <WeatherForecast :river-id="selectedRiver" />
         </div>
       </div>
 
@@ -191,6 +192,7 @@ import WaterLevelStatus from './components/WaterLevelStatus.vue';
 import WaterLevelChart from './components/WaterLevelChart.vue';
 import RiverSelector from './components/RiverSelector.vue';
 import SunTimes from './components/SunTimes.vue';
+import WeatherForecast from './components/WeatherForecast.vue';
 
 // River configurations
 const riverConfigs = {
