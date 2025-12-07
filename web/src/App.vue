@@ -103,16 +103,59 @@
     <!-- Footer -->
     <footer class="bg-white border-t border-gray-200 mt-12">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-6">
-        <div class="text-center text-sm text-gray-500">
-          <p class="mb-1">
-            Data sourced from ESB Hydro and waterlevel.ie | Updates hourly
-          </p>
-          <p class="text-xs">
-            Water level data from Office of Public Works (OPW) via waterlevel.ie (CC BY 4.0)
-          </p>
+        <div class="text-center">
+          <div class="mb-4">
+            <button
+              @click="openContactForm"
+              class="inline-flex items-center gap-2 px-6 py-2 bg-blue-600 text-white rounded-lg hover:bg-blue-700 transition-colors"
+            >
+              <svg class="w-5 h-5" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+                <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M3 8l7.89 5.26a2 2 0 002.22 0L21 8M5 19h14a2 2 0 002-2V7a2 2 0 00-2-2H5a2 2 0 00-2 2v10a2 2 0 002 2z" />
+              </svg>
+              Contact Us
+            </button>
+          </div>
+          <div class="text-sm text-gray-500">
+            <p class="mb-1">
+              Data sourced from ESB Hydro and waterlevel.ie | Updates hourly
+            </p>
+            <p class="text-xs">
+              Water level data from Office of Public Works (OPW) via waterlevel.ie (CC BY 4.0)
+            </p>
+          </div>
         </div>
       </div>
     </footer>
+
+    <!-- Contact Form Modal -->
+    <div
+      v-if="showContactForm"
+      class="fixed inset-0 bg-black bg-opacity-50 z-50 flex items-center justify-center p-4"
+      @click.self="closeContactForm"
+    >
+      <div class="bg-white rounded-lg shadow-xl max-w-3xl w-full max-h-[90vh] overflow-hidden animate-fade-in">
+        <div class="flex items-center justify-between p-4 border-b border-gray-200">
+          <h2 class="text-xl font-bold text-gray-800">Contact Us</h2>
+          <button
+            @click="closeContactForm"
+            class="p-2 hover:bg-gray-100 rounded-full transition-colors"
+            title="Close"
+          >
+            <svg class="w-6 h-6 text-gray-600" fill="none" stroke="currentColor" viewBox="0 0 24 24">
+              <path stroke-linecap="round" stroke-linejoin="round" stroke-width="2" d="M6 18L18 6M6 6l12 12" />
+            </svg>
+          </button>
+        </div>
+        <div class="overflow-y-auto" style="height: calc(90vh - 80px)">
+          <iframe
+            src="https://form.jotform.com/210906718558362"
+            frameborder="0"
+            style="width: 100%; height: 100%; min-height: 600px; border: none;"
+            scrolling="yes"
+          ></iframe>
+        </div>
+      </div>
+    </div>
   </div>
 </template>
 
@@ -190,6 +233,9 @@ const getInitialRiver = () => {
 // Selected river state
 const selectedRiver = ref(getInitialRiver());
 
+// Contact form modal state
+const showContactForm = ref(false);
+
 // Computed properties
 const currentRiverConfig = computed(() => riverConfigs[selectedRiver.value]);
 
@@ -213,6 +259,18 @@ function selectRiver(riverId) {
   window.history.pushState({}, '', url);
 
   window.scrollTo({ top: 0, behavior: 'smooth' });
+}
+
+function openContactForm() {
+  showContactForm.value = true;
+  // Prevent body scroll when modal is open
+  document.body.style.overflow = 'hidden';
+}
+
+function closeContactForm() {
+  showContactForm.value = false;
+  // Restore body scroll
+  document.body.style.overflow = '';
 }
 
 // Handle browser back/forward buttons
