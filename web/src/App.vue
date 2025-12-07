@@ -3,18 +3,11 @@
     <!-- Header -->
     <header class="bg-white shadow-sm border-b border-gray-200">
       <div class="max-w-7xl mx-auto px-4 sm:px-6 lg:px-8 py-4">
-        <div class="flex items-center justify-between">
-          <div class="flex items-center">
-            <img src="/guru-icon.png" alt="River Guru" class="w-12 h-12 mr-3" />
-            <div>
-              <h1 class="text-2xl font-bold text-gray-900">River Guru</h1>
-              <p class="text-sm text-gray-600">Irish Rivers Monitoring</p>
-            </div>
-          </div>
-          <div class="hidden md:block max-w-md">
-            <div class="text-sm italic text-gray-600 text-right">
-              <span class="text-blue-600">"</span>{{ currentQuote }}<span class="text-blue-600">"</span>
-            </div>
+        <div class="flex items-center">
+          <img src="/guru-icon.png" alt="River Guru" class="w-12 h-12 mr-3" />
+          <div>
+            <h1 class="text-2xl font-bold text-gray-900">River Guru</h1>
+            <p class="text-sm text-gray-600">Irish Rivers Monitoring</p>
           </div>
         </div>
       </div>
@@ -34,9 +27,24 @@
         <h2 class="text-2xl font-bold text-gray-800 mb-2">
           {{ currentRiverConfig.name }}
         </h2>
-        <p class="text-gray-600 max-w-2xl mx-auto">
+        <p class="text-gray-600 max-w-2xl mx-auto mb-4">
           {{ currentRiverConfig.description }}
         </p>
+
+        <!-- River Guru Quote - Visible on all devices -->
+        <div class="max-w-3xl mx-auto mt-6">
+          <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-100 animate-fade-in">
+            <div class="flex items-start gap-3">
+              <div class="text-3xl flex-shrink-0">💭</div>
+              <div class="flex-1 text-left">
+                <p class="text-sm font-medium text-blue-900 italic leading-relaxed">
+                  <span class="text-blue-600 font-bold">"</span>{{ currentQuote }}<span class="text-blue-600 font-bold">"</span>
+                </p>
+                <p class="text-xs text-blue-600 mt-2 font-semibold">— River Guru</p>
+              </div>
+            </div>
+          </div>
+        </div>
       </div>
 
       <!-- Station Grid - Dynamic layout based on station count -->
