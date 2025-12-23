@@ -1,6 +1,6 @@
 <template>
   <div class="mb-8 flex justify-center">
-    <div class="relative inline-block w-full max-w-md">
+    <div class="relative inline-block w-full max-w-lg">
       <label for="river-select" class="block text-sm font-medium text-gray-700 mb-2 text-center">
         Select River
       </label>

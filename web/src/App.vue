@@ -27,12 +27,12 @@
         <h2 class="text-2xl font-bold text-gray-800 mb-2">
           {{ currentRiverConfig.name }}
         </h2>
-        <p class="text-gray-600 max-w-2xl mx-auto mb-4">
+        <p class="text-gray-600 mb-4">
           {{ currentRiverConfig.description }}
         </p>
 
         <!-- River Guru Quote - Visible on all devices -->
-        <div class="max-w-3xl mx-auto mt-6">
+        <div class="mt-6">
           <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-100 animate-fade-in">
             <div class="flex items-start gap-3">
               <div class="text-3xl flex-shrink-0">💭</div>
@@ -78,14 +78,12 @@
       </div>
 
       <!-- Information Card -->
-      <div class="max-w-6xl mx-auto mb-8">
-        <div class="card animate-fade-in">
-          <div class="text-3xl mb-3">📍</div>
-          <h3 class="text-lg font-semibold text-gray-800 mb-2">About {{ currentRiverConfig.name }}</h3>
-          <p class="text-sm text-gray-600">
-            {{ currentRiverConfig.info }}
-          </p>
-        </div>
+      <div class="card animate-fade-in">
+        <div class="text-3xl mb-3">📍</div>
+        <h3 class="text-lg font-semibold text-gray-800 mb-2">About {{ currentRiverConfig.name }}</h3>
+        <p class="text-sm text-gray-600">
+          {{ currentRiverConfig.info }}
+        </p>
       </div>
     </main>
 
@@ -106,7 +104,7 @@
           </div>
 
           <!-- Disclaimer -->
-          <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4 max-w-3xl mx-auto">
+          <div class="bg-amber-50 border border-amber-200 rounded-lg p-4 mb-4">
             <div class="flex items-start gap-2">
               <svg class="w-5 h-5 text-amber-600 flex-shrink-0 mt-0.5" fill="currentColor" viewBox="0 0 20 20">
                 <path fill-rule="evenodd" d="M8.257 3.099c.765-1.36 2.722-1.36 3.486 0l5.58 9.92c.75 1.334-.213 2.98-1.742 2.98H4.42c-1.53 0-2.493-1.646-1.743-2.98l5.58-9.92zM11 13a1 1 0 11-2 0 1 1 0 012 0zm-1-8a1 1 0 00-1 1v3a1 1 0 002 0V6a1 1 0 00-1-1z" clip-rule="evenodd" />
