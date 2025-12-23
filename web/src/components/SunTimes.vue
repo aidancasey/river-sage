@@ -73,28 +73,28 @@
       <div class="grid grid-cols-2 gap-4 mb-6">
         <!-- Dawn -->
         <div class="text-center">
-          <div class="text-3xl mb-2">🌄</div>
+          <div class="text-3xl mb-2">🌤️</div>
           <div class="text-xl font-bold text-gray-800">{{ currentData.dawn }}</div>
           <div class="text-xs text-gray-500 mt-1">Dawn</div>
         </div>
 
         <!-- Sunrise -->
         <div class="text-center">
-          <div class="text-3xl mb-2">🌅</div>
+          <div class="text-3xl mb-2">☀️</div>
           <div class="text-xl font-bold text-orange-600">{{ currentData.sunrise }}</div>
           <div class="text-xs text-gray-500 mt-1">Sunrise</div>
         </div>
 
         <!-- Sunset -->
         <div class="text-center">
-          <div class="text-3xl mb-2">🌆</div>
+          <div class="text-3xl mb-2">🌅</div>
           <div class="text-xl font-bold text-orange-600">{{ currentData.sunset }}</div>
           <div class="text-xs text-gray-500 mt-1">Sunset</div>
         </div>
 
         <!-- Dusk -->
         <div class="text-center">
-          <div class="text-3xl mb-2">🌇</div>
+          <div class="text-3xl mb-2">🌙</div>
           <div class="text-xl font-bold text-gray-800">{{ currentData.dusk }}</div>
           <div class="text-xs text-gray-500 mt-1">Dusk</div>
         </div>
