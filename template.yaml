@@ -46,60 +46,8 @@ Parameters:
     Description: Name for the S3 bucket to host the River Guru web application
 
 Resources:
-  # S3 Bucket for storing river data (raw PDFs, parsed JSON, aggregated data)
-  RiverDataBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Ref S3BucketName
-      BucketEncryption:
-        ServerSideEncryptionConfiguration:
-          - ServerSideEncryptionByDefault:
-              SSEAlgorithm: AES256
-      VersioningConfiguration:
-        Status: Enabled
-      LifecycleConfiguration:
-        Rules:
-          # Move raw PDFs to Glacier after 90 days
-          - Id: ArchiveRawPDFs
-            Status: Enabled
-            Prefix: raw/
-            Transitions:
-              - TransitionInDays: 90
-                StorageClass: GLACIER
-            NoncurrentVersionTransitions:
-              - TransitionInDays: 30
-                StorageClass: GLACIER
-          # Move parsed JSON to Intelligent-Tiering after 30 days
-          - Id: IntelligentTieringParsed
-            Status: Enabled
-            Prefix: parsed/
-            Transitions:
-              - TransitionInDays: 30
-                StorageClass: INTELLIGENT_TIERING
-          # Keep aggregated data in Standard (frequently accessed)
-          - Id: DeleteOldVersions
-            Status: Enabled
-            NoncurrentVersionExpirationInDays: 90
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: true
-        BlockPublicPolicy: true
-        IgnorePublicAcls: true
-        RestrictPublicBuckets: true
-      CorsConfiguration:
-        CorsRules:
-          - AllowedHeaders:
-              - '*'
-            AllowedMethods:
-              - GET
-              - HEAD
-            AllowedOrigins:
-              - '*'
-            MaxAge: 3600
-      Tags:
-        - Key: Project
-          Value: IrishRiversDataScraper
-        - Key: Environment
-          Value: !Ref Environment
+  # NOTE: S3 bucket for river data (river-data-ireland-prod) exists outside CloudFormation
+  # Reference it directly using the S3BucketName parameter
 
   # IAM Role for Lambda function
   RiverDataCollectorRole:
@@ -130,8 +78,8 @@ Resources:
                   - s3:DeleteObject
                   - s3:PutObjectAcl
                 Resource:
-                  - !GetAtt RiverDataBucket.Arn
-                  - !Sub ${RiverDataBucket.Arn}/*
+                  - !Sub arn:aws:s3:::${S3BucketName}
+                  - !Sub arn:aws:s3:::${S3BucketName}/*
       Tags:
         - Key: Project
           Value: IrishRiversDataScraper
@@ -149,7 +97,7 @@ Resources:
       Role: !GetAtt RiverDataCollectorRole.Arn
       Environment:
         Variables:
-          S3_BUCKET_NAME: !Ref RiverDataBucket
+          S3_BUCKET_NAME: !Ref S3BucketName
           S3_REGION: !Ref AWS::Region
           S3_ENABLE_ENCRYPTION: "true"
           S3_STORAGE_CLASS: STANDARD
@@ -272,37 +220,8 @@ Resources:
   # Phase 2: River Guru Web App Resources
   # ========================================
 
-  # S3 Bucket for hosting River Guru web application
-  RiverGuruWebBucket:
-    Type: AWS::S3::Bucket
-    Properties:
-      BucketName: !Sub ${WebAppBucketName}-${Environment}
-      WebsiteConfiguration:
-        IndexDocument: index.html
-        ErrorDocument: index.html  # SPA routing support
-      PublicAccessBlockConfiguration:
-        BlockPublicAcls: false
-        BlockPublicPolicy: false
-        IgnorePublicAcls: false
-        RestrictPublicBuckets: false
-      Tags:
-        - Key: Project
-          Value: RiverGuruWebApp
-        - Key: Environment
-          Value: !Ref Environment
-
-  # Bucket policy to allow public read access for web hosting
-  RiverGuruWebBucketPolicy:
-    Type: AWS::S3::BucketPolicy
-    Properties:
-      Bucket: !Ref RiverGuruWebBucket
-      PolicyDocument:
-        Statement:
-          - Sid: PublicReadGetObject
-            Effect: Allow
-            Principal: '*'
-            Action: s3:GetObject
-            Resource: !Sub ${RiverGuruWebBucket.Arn}/*
+  # NOTE: S3 bucket for web app (river-guru-web-production) exists outside CloudFormation
+  # Reference it directly using the WebAppBucketName parameter
 
   # IAM Role for Data API Lambda function
   DataApiLambdaRole:
@@ -328,8 +247,8 @@ Resources:
                   - s3:GetObject
                   - s3:ListBucket
                 Resource:
-                  - !GetAtt RiverDataBucket.Arn
-                  - !Sub ${RiverDataBucket.Arn}/*
+                  - !Sub arn:aws:s3:::${S3BucketName}
+                  - !Sub arn:aws:s3:::${S3BucketName}/*
       Tags:
         - Key: Project
           Value: RiverGuruWebApp
@@ -349,7 +268,7 @@ Resources:
       MemorySize: 256
       Environment:
         Variables:
-          S3_BUCKET_NAME: !Ref RiverDataBucket
+          S3_BUCKET_NAME: !Ref S3BucketName
           S3_REGION: !Ref AWS::Region
           LOG_LEVEL: INFO
       Events:
@@ -419,16 +338,16 @@ Outputs:
     Export:
       Name: !Sub ${AWS::StackName}-function-name
 
-  # S3 Bucket
+  # S3 Bucket (exists outside CloudFormation)
   RiverDataBucketName:
     Description: Name of the S3 bucket for river data
-    Value: !Ref RiverDataBucket
+    Value: !Ref S3BucketName
     Export:
       Name: !Sub ${AWS::StackName}-bucket-name
 
   RiverDataBucketArn:
     Description: ARN of the S3 bucket
-    Value: !GetAtt RiverDataBucket.Arn
+    Value: !Sub arn:aws:s3:::${S3BucketName}
     Export:
       Name: !Sub ${AWS::StackName}-bucket-arn
 
@@ -440,7 +359,7 @@ Outputs:
   # URLs
   S3ConsoleUrl:
     Description: URL to S3 bucket in AWS Console
-    Value: !Sub https://s3.console.aws.amazon.com/s3/buckets/${RiverDataBucket}
+    Value: !Sub https://s3.console.aws.amazon.com/s3/buckets/${S3BucketName}
 
   LambdaConsoleUrl:
     Description: URL to Lambda function in AWS Console
@@ -459,13 +378,13 @@ Outputs:
 
   RiverGuruWebBucketName:
     Description: Name of the S3 bucket hosting River Guru web app
-    Value: !Ref RiverGuruWebBucket
+    Value: !Sub ${WebAppBucketName}-${Environment}
     Export:
       Name: !Sub ${AWS::StackName}-web-bucket-name
 
   RiverGuruWebsiteUrl:
     Description: URL for River Guru web application
-    Value: !GetAtt RiverGuruWebBucket.WebsiteURL
+    Value: !Sub http://${WebAppBucketName}-${Environment}.s3-website-${AWS::Region}.amazonaws.com
     Export:
       Name: !Sub ${AWS::StackName}-web-url
 
