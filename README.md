@@ -6,7 +6,7 @@ A low-cost, serverless system for aggregating water data from Irish rivers, incl
 
 ![River Guru Web App](docs/screenshots/app-screenshot.png)
 
-*River Guru displays real-time flow data from Inniscarra Dam with interactive historical charts*
+*River Guru displays real-time data from Inniscarra Dam (flow) and Waterworks Weir (water level & temperature) with interactive historical charts*
 
 ## Features
 
@@ -233,7 +233,7 @@ Configure data sources using the `DATA_SOURCES_JSON` environment variable:
     "station_id": "lee_waterworks",
     "name": "Waterworks Weir",
     "river": "River Lee",
-    "url": "http://waterlevel.ie/data/day/0000019102_{sensor}.csv",
+    "url": "https://waterlevel.ie/data/day/19102_{sensor}.csv",
     "source_type": "api",
     "enabled": true
   }
@@ -562,46 +562,41 @@ python -c "from src.lambda_handler import lambda_handler; ..."
 
 ## Roadmap
 
-### Phase 1: MVP ✅ Complete
-- [x] Project setup
-- [x] Configuration management
+### Phase 1: Data Collection Backend ✅ Complete
+- [x] Project setup and configuration management
 - [x] HTTP connector with retry logic
-- [x] PDF parsing (pdfplumber)
+- [x] ESB Hydro PDF parsing (pdfplumber)
 - [x] S3 storage integration (raw, parsed, aggregated)
 - [x] Lambda deployment (AWS SAM)
-- [x] EventBridge scheduling
-- [x] CloudWatch monitoring
+- [x] EventBridge scheduling (hourly at 30 mins past)
+- [x] CloudWatch monitoring and structured logging
 
 ### Phase 2: River Guru Web App ✅ Complete
-- [x] Vue.js single-page web application
+- [x] Vue.js 3 single-page web application
 - [x] Display current flow rate for Inniscarra Dam
-- [x] Interactive historical flow chart (24h, 7d, 30d, 90d views)
-- [x] Mobile-first responsive design
+- [x] Interactive historical flow charts (24h, 7d, 30d views)
+- [x] Mobile-first responsive design with Tailwind CSS
 - [x] API Gateway + Lambda for data access
 - [x] S3 static website hosting
 - [x] Integrated Makefile deployment (backend + frontend)
-- [x] Manual refresh for latest data (hourly backend collection)
 
-### Phase 3: Enhanced Data Collection (🚧 In Progress)
-- [x] Additional river stations - waterlevel.ie integration (Waterworks Weir)
+### Phase 3: Multi-Source Data Collection ✅ Complete
+- [x] waterlevel.ie integration (Waterworks Weir station)
 - [x] Water level and temperature data collection
-- [x] Multi-station support in web app
-- [ ] Additional stations from waterlevel.ie network
-- [ ] Weather data integration (Met Éireann)
-- [ ] Rainfall data correlation
-- [ ] Data validation and quality checks
+- [x] CSV parser with flexible timestamp handling
+- [x] Multi-station display in web app (side-by-side layout)
+- [x] Separate charts for water level and temperature
 
-### Phase 4: Advanced Features
-- [ ] User accounts and preferences
-- [ ] Flow alert notifications (email/SMS)
-- [ ] Predictive flow analytics
-- [ ] Data export (CSV, JSON, PDF reports)
-
-## TODO / Future Enhancements
-
-- [ ] **Raw File Cleanup**: Implement automatic deletion of raw files (PDFs and CSVs) after they have been processed and stored in parsed format. This will reduce S3 storage costs over time. Consider a retention period (e.g., 30-90 days) before deletion to allow for reprocessing if needed.
-- [ ] **Apple Watch API**: Create a lightweight API endpoint that returns the current Inniscarra flow level in a simple format suitable for Apple Watch Shortcuts integration. Should return minimal JSON with just the current flow rate and timestamp for fast loading on watchOS.
-- [ ] **Push Notifications**: Implement mobile push notifications for Inniscarra Dam flow level changes. Users can register for alerts during specific time windows (e.g., morning/evening) and receive notifications when flow levels change significantly. Could use AWS SNS for notification delivery and DynamoDB for subscription management.
+### Phase 4: Future Enhancements (Planned)
+- [ ] **Additional Stations**: Add more rivers from waterlevel.ie network
+- [ ] **Weather Integration**: Correlate Met Éireann rainfall data with flow levels
+- [ ] **Data Quality**: Validation checks and anomaly detection
+- [ ] **Raw File Cleanup**: Auto-delete raw PDFs/CSVs after processing (30-90 day retention)
+- [ ] **Apple Watch API**: Lightweight endpoint for watchOS Shortcuts integration
+- [ ] **Push Notifications**: Flow level alerts via AWS SNS (email/SMS)
+- [ ] **User Accounts**: Preferences and personalized alerts
+- [ ] **Predictive Analytics**: ML-based flow predictions
+- [ ] **PWA Support**: Offline mode and install-to-home-screen
 
 ## License
 
