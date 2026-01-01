@@ -597,6 +597,12 @@ python -c "from src.lambda_handler import lambda_handler; ..."
 - [ ] Predictive flow analytics
 - [ ] Data export (CSV, JSON, PDF reports)
 
+## TODO / Future Enhancements
+
+- [ ] **Raw File Cleanup**: Implement automatic deletion of raw files (PDFs and CSVs) after they have been processed and stored in parsed format. This will reduce S3 storage costs over time. Consider a retention period (e.g., 30-90 days) before deletion to allow for reprocessing if needed.
+- [ ] **Apple Watch API**: Create a lightweight API endpoint that returns the current Inniscarra flow level in a simple format suitable for Apple Watch Shortcuts integration. Should return minimal JSON with just the current flow rate and timestamp for fast loading on watchOS.
+- [ ] **Push Notifications**: Implement mobile push notifications for Inniscarra Dam flow level changes. Users can register for alerts during specific time windows (e.g., morning/evening) and receive notifications when flow levels change significantly. Could use AWS SNS for notification delivery and DynamoDB for subscription management.
+
 ## License
 
 This project is licensed under the **Creative Commons Attribution-NonCommercial 4.0 International License** (CC BY-NC 4.0) - see the [LICENSE](LICENSE) file for details.
