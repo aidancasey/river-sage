@@ -231,86 +231,101 @@ def handle_historical_flow(event: Dict[str, Any]) -> Dict[str, Any]:
 
         logger.info(f"Fetching {hours} hours of historical data for station: {station_id}")
 
-        # Read historical data from parsed monthly file
-        now = datetime.now()
-        # For simplicity, read current month's file (could be extended to read multiple months)
-        s3_key = f'parsed/{station_id}/{now.year}/{now.month:02d}/{station_id}_flow_{now.year}{now.month:02d}.json.gz'
+        # Calculate time range
+        from datetime import timezone
+        import gzip
+        now = datetime.now(timezone.utc)
+        cutoff_time = now - timedelta(hours=hours)
 
-        try:
-            response = s3_client.get_object(
-                Bucket=S3_BUCKET_NAME,
-                Key=s3_key
-            )
+        # Determine which months we need to fetch
+        months_to_fetch = []
+        current = cutoff_time.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+        end_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
 
-            # Decompress gzip data
-            import gzip
-            with gzip.GzipFile(fileobj=response['Body']) as gzipfile:
-                data = json.loads(gzipfile.read().decode('utf-8'))
-
-            # Filter data points by time range
-            from datetime import timezone
-            cutoff_time = datetime.now(timezone.utc) - timedelta(hours=hours)
-            historical_readings = data.get('historical_readings', [])
-
-            # Determine station type from first reading
-            station_type = 'flow' if historical_readings and 'flow_rate_m3s' in historical_readings[0] else 'water_level'
-
-            # Convert to API format and filter by time
-            filtered_points = []
-            for reading in historical_readings:
-                timestamp_str = reading.get('timestamp', '')
-                reading_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
-
-                if reading_time >= cutoff_time:
-                    if station_type == 'flow':
-                        filtered_points.append({
-                            'timestamp': timestamp_str,
-                            'flow': reading.get('flow_rate_m3s', 0)
-                        })
-                    else:
-                        filtered_points.append({
-                            'timestamp': timestamp_str,
-                            'waterLevel': reading.get('water_level_m'),
-                            'temperature': reading.get('temperature_c')
-                        })
-
-            # Sort by timestamp (oldest first)
-            filtered_points.sort(key=lambda x: x['timestamp'])
-
-            # Calculate statistics
-            if filtered_points:
-                if station_type == 'flow':
-                    values = [point['flow'] for point in filtered_points]
-                    statistics = {
-                        'min': round(min(values), 2),
-                        'max': round(max(values), 2),
-                        'average': round(sum(values) / len(values), 2),
-                        'trend': calculate_trend(values)
-                    }
-                else:
-                    # Water level statistics
-                    level_values = [point['waterLevel'] for point in filtered_points if point['waterLevel'] is not None]
-                    if level_values:
-                        statistics = {
-                            'minLevel': round(min(level_values), 3),
-                            'maxLevel': round(max(level_values), 3),
-                            'averageLevel': round(sum(level_values) / len(level_values), 3),
-                            'trend': calculate_trend(level_values)
-                        }
-                    else:
-                        statistics = {
-                            'minLevel': 0,
-                            'maxLevel': 0,
-                            'averageLevel': 0,
-                            'trend': 'unknown'
-                        }
+        while current <= end_month:
+            months_to_fetch.append((current.year, current.month))
+            # Move to next month
+            if current.month == 12:
+                current = current.replace(year=current.year + 1, month=1)
             else:
+                current = current.replace(month=current.month + 1)
+
+        logger.info(f"Fetching data from {len(months_to_fetch)} month(s): {months_to_fetch}")
+
+        # Read historical data from all relevant monthly files
+        all_readings = []
+        for year, month in months_to_fetch:
+            s3_key = f'parsed/{station_id}/{year}/{month:02d}/{station_id}_flow_{year}{month:02d}.json.gz'
+            try:
+                response = s3_client.get_object(
+                    Bucket=S3_BUCKET_NAME,
+                    Key=s3_key
+                )
+
+                # Decompress gzip data
+                with gzip.GzipFile(fileobj=response['Body']) as gzipfile:
+                    data = json.loads(gzipfile.read().decode('utf-8'))
+
+                readings = data.get('historical_readings', [])
+                all_readings.extend(readings)
+                logger.info(f"Loaded {len(readings)} readings from {year}/{month:02d}")
+
+            except s3_client.exceptions.NoSuchKey:
+                logger.warning(f"No data file found for {station_id} {year}/{month:02d}")
+                continue
+            except Exception as e:
+                logger.warning(f"Error reading {station_id} {year}/{month:02d}: {str(e)}")
+                continue
+
+        if not all_readings:
+            return error_response(404, f'No historical data found for station: {station_id}')
+
+        historical_readings = all_readings
+
+        # Determine station type from first reading
+        station_type = 'flow' if historical_readings and 'flow_rate_m3s' in historical_readings[0] else 'water_level'
+
+        # Convert to API format and filter by time
+        filtered_points = []
+        for reading in historical_readings:
+            timestamp_str = reading.get('timestamp', '')
+            reading_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+
+            if reading_time >= cutoff_time:
                 if station_type == 'flow':
+                    filtered_points.append({
+                        'timestamp': timestamp_str,
+                        'flow': reading.get('flow_rate_m3s', 0)
+                    })
+                else:
+                    filtered_points.append({
+                        'timestamp': timestamp_str,
+                        'waterLevel': reading.get('water_level_m'),
+                        'temperature': reading.get('temperature_c')
+                    })
+
+        # Sort by timestamp (oldest first)
+        filtered_points.sort(key=lambda x: x['timestamp'])
+
+        # Calculate statistics
+        if filtered_points:
+            if station_type == 'flow':
+                values = [point['flow'] for point in filtered_points]
+                statistics = {
+                    'min': round(min(values), 2),
+                    'max': round(max(values), 2),
+                    'average': round(sum(values) / len(values), 2),
+                    'trend': calculate_trend(values)
+                }
+            else:
+                # Water level statistics
+                level_values = [point['waterLevel'] for point in filtered_points if point['waterLevel'] is not None]
+                if level_values:
                     statistics = {
-                        'min': 0,
-                        'max': 0,
-                        'average': 0,
-                        'trend': 'unknown'
+                        'minLevel': round(min(level_values), 3),
+                        'maxLevel': round(max(level_values), 3),
+                        'averageLevel': round(sum(level_values) / len(level_values), 3),
+                        'trend': calculate_trend(level_values)
                     }
                 else:
                     statistics = {
@@ -319,27 +334,38 @@ def handle_historical_flow(event: Dict[str, Any]) -> Dict[str, Any]:
                         'averageLevel': 0,
                         'trend': 'unknown'
                     }
+        else:
+            if station_type == 'flow':
+                statistics = {
+                    'min': 0,
+                    'max': 0,
+                    'average': 0,
+                    'trend': 'unknown'
+                }
+            else:
+                statistics = {
+                    'minLevel': 0,
+                    'maxLevel': 0,
+                    'averageLevel': 0,
+                    'trend': 'unknown'
+                }
 
-            # Format response
-            response_data = {
-                'stationId': station_id,
-                'stationType': station_type,
-                'timeRange': {
-                    'start': cutoff_time.isoformat(),
-                    'end': datetime.now(timezone.utc).isoformat(),
-                    'hours': hours
-                },
-                'dataPoints': filtered_points,
-                'statistics': statistics,
-                'count': len(filtered_points)
-            }
+        # Format response
+        response_data = {
+            'stationId': station_id,
+            'stationType': station_type,
+            'timeRange': {
+                'start': cutoff_time.isoformat(),
+                'end': datetime.now(timezone.utc).isoformat(),
+                'hours': hours
+            },
+            'dataPoints': filtered_points,
+            'statistics': statistics,
+            'count': len(filtered_points)
+        }
 
-            logger.info(f"Successfully fetched {len(filtered_points)} historical data points")
-            return cors_response(200, response_data)
-
-        except s3_client.exceptions.NoSuchKey:
-            logger.warning(f"No historical data found for station: {station_id}")
-            return error_response(404, f'No historical data found for station: {station_id}')
+        logger.info(f"Successfully fetched {len(filtered_points)} historical data points")
+        return cors_response(200, response_data)
 
     except ValueError as e:
         logger.warning(f"Invalid query parameter: {str(e)}")

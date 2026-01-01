@@ -120,7 +120,8 @@ const props = defineProps({
 const historicalData = ref(null);
 const loading = ref(true);
 const error = ref(null);
-const selectedRange = ref(24); // hours
+const selectedRange = ref(24);
+const selectedUnit = ref('hours');
 
 // Time range options
 const timeRanges = [
@@ -148,13 +149,13 @@ const chartData = computed(() => {
   return {
     labels: dataPoints.map((point) => {
       const date = parseISO(point.timestamp);
-      // Format based on time range
-      if (selectedRange.value <= 24) {
+      // Format based on time range and unit
+      if (selectedUnit.value === 'hours') {
         return format(date, 'HH:mm'); // Show time for 24h view
       } else if (selectedRange.value <= 7) {
         return format(date, 'MMM d HH:mm'); // Show date and time for week view
       } else {
-        return format(date, 'MMM d'); // Show just date for longer ranges
+        return format(date, 'MMM d'); // Show just date for longer ranges (30/90 days)
       }
     }),
     datasets: [
@@ -238,6 +239,7 @@ async function fetchData() {
 
 function selectTimeRange(range) {
   selectedRange.value = range.value;
+  selectedUnit.value = range.unit;
   fetchData();
 }
 
