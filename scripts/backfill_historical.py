@@ -373,6 +373,16 @@ def find_matching_temp(timestamp: datetime, temp_dict: Dict[datetime, float]) ->
 def main():
     bucket_name = 'river-data-ireland-prod'
 
+    # All water level stations (CSV format)
+    water_level_stations = [
+        {'station_id': 'lee_waterworks', 'name': 'Waterworks Weir', 'river': 'River Lee'},
+        {'station_id': 'blackwater_fermoy', 'name': 'Fermoy Town', 'river': 'River Blackwater'},
+        {'station_id': 'blackwater_mallow', 'name': 'Mallow Railway Bridge', 'river': 'River Blackwater'},
+        {'station_id': 'suir_golden', 'name': 'New Bridge (Golden)', 'river': 'River Suir'},
+        {'station_id': 'owenboy', 'name': 'Owenboy', 'river': 'River Owenboy'},
+        {'station_id': 'bandon_curranure', 'name': 'Curranure', 'river': 'River Bandon'},
+    ]
+
     # Backfill Inniscarra (River Lee) - flow data from PDFs
     print("=" * 60)
     print("Backfilling Inniscarra Dam (River Lee) - Flow Data")
@@ -384,16 +394,21 @@ def main():
         river_name='River Lee'
     )
 
-    # Backfill Lee Waterworks (River Lee) - water level from CSVs
+    # Backfill all water level stations
+    for station in water_level_stations:
+        print("\n" + "=" * 60)
+        print(f"Backfilling {station['name']} ({station['river']}) - Water Level Data")
+        print("=" * 60)
+        backfill_water_level_station(
+            bucket_name=bucket_name,
+            station_id=station['station_id'],
+            station_name=station['name'],
+            river_name=station['river']
+        )
+
     print("\n" + "=" * 60)
-    print("Backfilling Lee Waterworks (River Lee) - Water Level Data")
+    print("ALL STATIONS BACKFILLED SUCCESSFULLY")
     print("=" * 60)
-    backfill_water_level_station(
-        bucket_name=bucket_name,
-        station_id='lee_waterworks',
-        station_name='Waterworks Weir',
-        river_name='River Lee'
-    )
 
 
 if __name__ == '__main__':
