@@ -230,9 +230,12 @@ class S3Storage:
         compress: bool = True
     ) -> str:
         """
-        Upload parsed flow data as JSON to S3.
+        Upload parsed flow data as JSON to S3, merging with existing historical data.
 
         Uploads to: parsed/{station_id}/YYYY/MM/{station_id}_flow_{YYYYMM}.json.gz
+
+        This method reads existing data for the month and merges new readings,
+        deduplicating by timestamp to build up a complete historical record.
 
         Args:
             parsed_data: Parsed flow data
@@ -261,8 +264,59 @@ class S3Storage:
                 compress=compress
             )
 
-            # Convert to JSON
+            # Try to read existing data for this month to merge with new readings
+            existing_readings = {}
+            try:
+                response = self.s3.get_object(
+                    Bucket=self.config.bucket_name,
+                    Key=s3_key
+                )
+                content = response['Body'].read()
+                if compress:
+                    content = gzip.decompress(content)
+                existing_data = json.loads(content.decode('utf-8'))
+                # Index existing readings by timestamp for deduplication
+                for reading in existing_data.get('historical_readings', []):
+                    existing_readings[reading['timestamp']] = reading
+                logger.info(
+                    "Loaded existing historical data",
+                    station_id=station_id,
+                    existing_count=len(existing_readings)
+                )
+            except ClientError as e:
+                if e.response['Error']['Code'] == 'NoSuchKey':
+                    logger.info(
+                        "No existing data for month, creating new file",
+                        station_id=station_id,
+                        s3_key=s3_key
+                    )
+                else:
+                    raise
+
+            # Convert new data to dict and merge historical readings
             json_data = parsed_data.to_dict()
+
+            # Add new readings to existing (new readings override if same timestamp)
+            for reading in json_data.get('historical_readings', []):
+                existing_readings[reading['timestamp']] = reading
+
+            # Sort all readings by timestamp (newest first for consistency)
+            all_readings = sorted(
+                existing_readings.values(),
+                key=lambda x: x['timestamp'],
+                reverse=True
+            )
+
+            # Update the data with merged readings
+            json_data['historical_readings'] = all_readings
+            json_data['reading_count'] = len(all_readings)
+
+            logger.info(
+                "Merged historical readings",
+                station_id=station_id,
+                new_total=len(all_readings)
+            )
+
             json_str = json.dumps(json_data, indent=2)
             json_bytes = json_str.encode('utf-8')
 
