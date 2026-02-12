@@ -1,0 +1,29 @@
+# OpenTelemetry Collector configuration for Dash0
+# This file is packaged as a Lambda layer and loaded at /opt/otel-collector-config.yaml
+# The ADOT Lambda layer's bundled collector reads this to export telemetry to Dash0.
+
+receivers:
+  otlp:
+    protocols:
+      grpc:
+        endpoint: "localhost:4317"
+      http:
+        endpoint: "localhost:4318"
+
+exporters:
+  otlphttp/dash0:
+    endpoint: ${env:DASH0_OTLP_ENDPOINT}
+    headers:
+      Authorization: "Bearer ${env:DASH0_AUTH_TOKEN}"
+
+service:
+  pipelines:
+    traces:
+      receivers: [otlp]
+      exporters: [otlphttp/dash0]
+    metrics:
+      receivers: [otlp]
+      exporters: [otlphttp/dash0]
+    logs:
+      receivers: [otlp]
+      exporters: [otlphttp/dash0]

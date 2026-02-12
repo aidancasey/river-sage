@@ -12,6 +12,11 @@ from datetime import datetime
 from typing import Any, Dict, Optional
 from enum import Enum
 
+try:
+    from opentelemetry import trace as otel_trace
+except ImportError:
+    otel_trace = None
+
 
 class LogLevel(Enum):
     """Logging levels."""
@@ -77,6 +82,14 @@ class StructuredLogger:
             "logger": self.name,
             "message": message
         }
+
+        # Inject OpenTelemetry trace/span IDs for log-trace correlation
+        if otel_trace is not None:
+            span = otel_trace.get_current_span()
+            span_ctx = span.get_span_context()
+            if span_ctx.trace_id:
+                log_entry["trace_id"] = format(span_ctx.trace_id, '032x')
+                log_entry["span_id"] = format(span_ctx.span_id, '016x')
 
         if context:
             # Filter out None values

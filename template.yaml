@@ -45,6 +45,17 @@ Parameters:
     Default: river-guru-web
     Description: Name for the S3 bucket to host the River Guru web application
 
+  Dash0OtlpEndpoint:
+    Type: String
+    Default: "https://ingress.europe-west4.gcp.dash0.com"
+    Description: Dash0 OTLP/HTTP ingress endpoint
+
+  Dash0AuthToken:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Dash0 authentication token (Bearer token)
+
 Resources:
   # NOTE: S3 bucket for river data (river-data-ireland-prod) exists outside CloudFormation
   # Reference it directly using the S3BucketName parameter
@@ -86,6 +97,23 @@ Resources:
         - Key: Environment
           Value: !Ref Environment
 
+  # ========================================
+  # OpenTelemetry / Dash0 Observability
+  # ========================================
+
+  # Custom OTel Collector config packaged as a Lambda layer
+  # The ADOT layer's bundled collector reads this from /opt/ to export to Dash0
+  OtelCollectorConfigLayer:
+    Type: AWS::Lambda::LayerVersion
+    Properties:
+      LayerName: !Sub ${AWS::StackName}-otel-collector-config
+      Description: Custom OpenTelemetry Collector configuration for Dash0
+      Content: otel-collector-config/
+      CompatibleRuntimes:
+        - python3.13
+      CompatibleArchitectures:
+        - arm64
+
   # Lambda function for collecting river data
   RiverDataCollectorFunction:
     Type: AWS::Serverless::Function
@@ -95,8 +123,17 @@ Resources:
       CodeUri: .
       Handler: src.lambda_handler.lambda_handler
       Role: !GetAtt RiverDataCollectorRole.Arn
+      Layers:
+        - arn:aws:lambda:eu-west-1:901920570463:layer:aws-otel-python-arm64-ver-1-32-0:2
+        - !Ref OtelCollectorConfigLayer
       Environment:
         Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
+          OPENTELEMETRY_COLLECTOR_CONFIG_URI: /opt/otel-collector-config.yaml
+          OTEL_SERVICE_NAME: river-data-collector
+          OTEL_PROPAGATORS: tracecontext,baggage
+          DASH0_OTLP_ENDPOINT: !Ref Dash0OtlpEndpoint
+          DASH0_AUTH_TOKEN: !Ref Dash0AuthToken
           S3_BUCKET_NAME: !Ref S3BucketName
           S3_REGION: !Ref AWS::Region
           S3_ENABLE_ENCRYPTION: "true"
@@ -266,8 +303,17 @@ Resources:
       Role: !GetAtt DataApiLambdaRole.Arn
       Timeout: 30
       MemorySize: 256
+      Layers:
+        - arn:aws:lambda:eu-west-1:901920570463:layer:aws-otel-python-arm64-ver-1-32-0:2
+        - !Ref OtelCollectorConfigLayer
       Environment:
         Variables:
+          AWS_LAMBDA_EXEC_WRAPPER: /opt/otel-instrument
+          OPENTELEMETRY_COLLECTOR_CONFIG_URI: /opt/otel-collector-config.yaml
+          OTEL_SERVICE_NAME: river-data-api
+          OTEL_PROPAGATORS: tracecontext,baggage
+          DASH0_OTLP_ENDPOINT: !Ref Dash0OtlpEndpoint
+          DASH0_AUTH_TOKEN: !Ref Dash0AuthToken
           S3_BUCKET_NAME: !Ref S3BucketName
           S3_REGION: !Ref AWS::Region
           LOG_LEVEL: INFO

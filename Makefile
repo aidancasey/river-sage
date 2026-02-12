@@ -50,9 +50,13 @@ deploy-web: ## Deploy web app to S3 (requires ENV to be set)
 		--cache-control "max-age=31536000,public"
 	@echo "$(GREEN)✓ Web app deployed to river-guru-web-$(ENV)$(NC)"
 
-deploy-infrastructure: ## Deploy infrastructure with SAM (requires ENV to be set)
+deploy-infrastructure: ## Deploy infrastructure with SAM (requires ENV and DASH0_AUTH_TOKEN to be set)
+	@if [ -z "$(DASH0_AUTH_TOKEN)" ]; then \
+		echo "$(YELLOW)WARNING: DASH0_AUTH_TOKEN is not set. Deploying without Dash0 observability.$(NC)"; \
+	fi
 	@echo "$(BLUE)Deploying infrastructure with SAM ($(ENV))...$(NC)"
-	sam deploy --config-env $(ENV) --no-confirm-changeset
+	sam deploy --config-env $(ENV) --no-confirm-changeset \
+		--parameter-overrides "Dash0AuthToken=$(DASH0_AUTH_TOKEN)"
 	@echo "$(GREEN)✓ Infrastructure deployed$(NC)"
 
 deploy: build deploy-infrastructure deploy-web ## Build and deploy everything
