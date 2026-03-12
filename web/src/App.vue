@@ -31,8 +31,8 @@
           {{ currentRiverConfig.description }}
         </p>
 
-        <!-- River Guru Quote - Visible on all devices -->
-        <div class="mt-6">
+        <!-- River Guru Quote - Controlled by Flagsmith show_guru_messages flag -->
+        <div v-if="showGuruMessages" class="mt-6">
           <div class="bg-gradient-to-r from-blue-50 to-cyan-50 rounded-lg p-4 border border-blue-100 animate-fade-in">
             <div class="flex items-start gap-3">
               <div class="text-3xl flex-shrink-0">💭</div>
@@ -197,6 +197,7 @@ import RiverSelector from './components/RiverSelector.vue';
 import SunTimes from './components/SunTimes.vue';
 import WeatherForecast from './components/WeatherForecast.vue';
 import DataSources from './components/DataSources.vue';
+import { initFlagsmith, isFeatureEnabled } from './services/flagsmith.js';
 
 // River Guru quotes - fun and enlightening wisdom for fly fishermen
 const guruQuotes = [
@@ -217,6 +218,9 @@ const guruQuotes = [
   "Every river has its rhythm - learn to dance with the flow"
 ];
 
+// Feature flags
+const showGuruMessages = ref(true);
+
 // Current quote state
 const currentQuoteIndex = ref(0);
 const currentQuote = computed(() => guruQuotes[currentQuoteIndex.value]);
@@ -224,10 +228,15 @@ const currentQuote = computed(() => guruQuotes[currentQuoteIndex.value]);
 // Rotate quote every 10 seconds
 let quoteInterval;
 
-onMounted(() => {
-  quoteInterval = setInterval(() => {
-    currentQuoteIndex.value = (currentQuoteIndex.value + 1) % guruQuotes.length;
-  }, 10000);
+onMounted(async () => {
+  await initFlagsmith();
+  showGuruMessages.value = isFeatureEnabled('show_guru_messages');
+
+  if (showGuruMessages.value) {
+    quoteInterval = setInterval(() => {
+      currentQuoteIndex.value = (currentQuoteIndex.value + 1) % guruQuotes.length;
+    }, 10000);
+  }
 });
 
 onUnmounted(() => {
