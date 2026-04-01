@@ -135,9 +135,57 @@ export function getFlowStatusColor(status) {
   return colors[status] || colors.normal;
 }
 
+/**
+ * Register an Irish mobile number for flow alerts
+ * @param {string} phone - Irish mobile number (e.g. '083 123 4567')
+ * @returns {Promise<{phone: string}>} Normalised E.164 phone number
+ */
+export async function registerPhone(phone) {
+  try {
+    const response = await apiClient.post('/api/alerts/register', { phone });
+    return response.data;
+  } catch (error) {
+    const msg = error.response?.data?.error || error.message;
+    throw new Error(msg);
+  }
+}
+
+/**
+ * Opt a phone number in for today's flow alerts
+ * @param {string} phone - Registered phone number (E.164 or local Irish format)
+ * @returns {Promise<Object>} Opt-in confirmation
+ */
+export async function optInToday(phone) {
+  try {
+    const response = await apiClient.post('/api/alerts/optin', { phone });
+    return response.data;
+  } catch (error) {
+    const msg = error.response?.data?.error || error.message;
+    throw new Error(msg);
+  }
+}
+
+/**
+ * Check whether a phone number is opted in for today's alerts
+ * @param {string} phone - Phone number to check
+ * @returns {Promise<{opted_in: boolean, phone: string}>}
+ */
+export async function getAlertStatus(phone) {
+  try {
+    const response = await apiClient.get('/api/alerts/status', { params: { phone } });
+    return response.data;
+  } catch (error) {
+    const msg = error.response?.data?.error || error.message;
+    throw new Error(msg);
+  }
+}
+
 export default {
   getLatestData,
   getLatestFlow,
   getHistoricalFlow,
   getFlowStatusColor,
+  registerPhone,
+  optInToday,
+  getAlertStatus,
 };

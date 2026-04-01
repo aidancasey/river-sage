@@ -120,6 +120,9 @@ site/
 config.local.json
 settings.local.py
 
+# Deployment secrets (never commit)
+.env.secrets
+
 # Node.js / Web App
 web/node_modules/
 web/dist/
