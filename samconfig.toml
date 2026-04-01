@@ -19,7 +19,7 @@ capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
 confirm_changeset = true
 resolve_s3 = true
 region = "eu-west-1"
-parameter_overrides = "Environment=production S3BucketName=river-data-ireland-prod ScheduleExpression=\"rate(1 hour)\" WebAppBucketName=river-guru-web AllowedOrigin=\"http://river-guru-web-production.s3-website-eu-west-1.amazonaws.com\""
+parameter_overrides = "Environment=production S3BucketName=river-data-ireland-prod ScheduleExpression=\"rate(1 hour)\" WebAppBucketName=river-guru-web AllowedOrigin=\"https://theriverguru.com\""
 
 [default.package.parameters]
 resolve_s3 = true
