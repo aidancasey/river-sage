@@ -67,5 +67,5 @@ capabilities = "CAPABILITY_IAM CAPABILITY_NAMED_IAM"
 confirm_changeset = true  # Always confirm in production
 resolve_s3 = true
 region = "eu-west-1"
-parameter_overrides = "Environment=production S3BucketName=river-data-ireland-prod ScheduleExpression=\"cron(30 * * * ? *)\" WebAppBucketName=river-guru-web"
+parameter_overrides = "Environment=production S3BucketName=river-data-ireland-prod ScheduleExpression=\"cron(30 * * * ? *)\" WebAppBucketName=river-guru-web TwilioAccountSid=/river-data-scraper/twilio/account_sid TwilioAuthToken=/river-data-scraper/twilio/auth_token TwilioWhatsappFrom=/river-data-scraper/twilio/whatsapp_from AllowedOrigin=\"https://theriverguru.com,https://www.theriverguru.com\""
 fail_on_empty_changeset = false
