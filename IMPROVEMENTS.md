@@ -20,16 +20,11 @@ Identified improvements to make deployments more streamlined and less error-pron
 
 ---
 
-## 3. Remove Redundant Secret Injection from Makefile
+## 3. ~~Remove Redundant Secret Injection from Makefile~~ DONE
 
-**Priority:** High | **Effort:** Low (~15 min)
-
-The Makefile `deploy-infrastructure` target reads `.env.secrets` and passes Twilio values as `--parameter-overrides`, but Twilio secrets are already resolved from SSM Parameter Store by CloudFormation. The override path is a leftover that could conflict.
-
-**Action items:**
-- [ ] Remove Twilio credential handling from `.env.secrets` flow in `Makefile`
-- [ ] Confirm `template.yaml` SSM `{{resolve:ssm-secure:...}}` references are the sole source
-- [ ] Update `.env.secrets.example` to remove Twilio entries
+- [x] Removed entire `.env.secrets` / parameter override block from Makefile
+- [x] Twilio secrets read from SSM at Lambda runtime (not deploy time)
+- [x] Also cleaned up leftover Dash0/OTEL references from Makefile
 
 ---
 
