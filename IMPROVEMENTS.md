@@ -2,46 +2,21 @@
 
 Identified improvements to make deployments more streamlined and less error-prone.
 
-## 1. Add CI/CD Pipeline
+## 1. ~~Add CI/CD Pipeline~~ DONE
 
-**Priority:** High | **Effort:** Medium
-
-Deployments are fully manual (`make deploy-prod` from a local machine). No automated tests run before deploy, secrets must exist locally, and there's no audit trail.
-
-**Decisions made:**
-- Deploy to production on merge/push to `main` (no staging environment)
-- Use OIDC federation instead of long-lived AWS access keys (short-lived tokens, nothing to rotate or leak)
-- Twilio secrets stay in SSM Parameter Store — no need to duplicate them in GitHub
-
-**Implemented:**
-- [x] GitHub Actions workflow: `.github/workflows/deploy.yml`
-  - `test` job — runs `pytest` on every push to `main`
-  - `validate` job — runs `sam validate --lint` in parallel
-  - `deploy` job — builds and deploys Lambda + web app (only if test + validate pass)
-
-**Remaining — AWS OIDC setup (one-time):**
-- [ ] Create IAM OIDC identity provider in AWS for `token.actions.githubusercontent.com`
-- [ ] Create IAM role with trust policy scoped to `aidancasey/river-sage:ref:refs/heads/main`
-- [ ] Grant the role permissions: S3, CloudFormation, Lambda, IAM, API Gateway, EventBridge, CloudWatch, SSM read
-- [ ] Update workflow to use `role-to-assume` instead of access key secrets
-- [ ] Create `production` environment in GitHub repo settings (optional — adds approval gate)
-
-**Remaining — switch workflow to OIDC auth:**
-- [ ] Replace `aws-access-key-id` / `aws-secret-access-key` with `role-to-assume: arn:aws:iam::ACCOUNT_ID:role/github-actions-river-sage`
-- [ ] Remove `AWS_ACCESS_KEY_ID` and `AWS_SECRET_ACCESS_KEY` from GitHub secrets (if added)
+- [x] GitHub Actions workflow (`.github/workflows/deploy.yml`) deploys on push to `main`
+- [x] `test` + `validate` jobs run in parallel; `deploy` only runs if both pass
+- [x] OIDC federation — IAM role `github-actions-river-sage` with short-lived tokens, no stored keys
+- [x] Twilio secrets resolved at Lambda runtime from SSM (not at deploy time)
+- [x] Web app `VITE_API_BASE_URL` fetched from CloudFormation outputs during CI build
 
 ---
 
-## 2. Wire CloudWatch Alarms to SNS
+## 2. ~~Wire CloudWatch Alarms to SNS~~ DONE
 
-**Priority:** High | **Effort:** Low (~30 min)
-
-`template.yaml` defines error and throttle alarms but they have **no `AlarmActions`** — Lambda failures are currently silent.
-
-**Action items:**
-- [ ] Add an SNS topic resource to `template.yaml`
-- [ ] Add email/Slack subscription to the topic
-- [ ] Wire `AlarmActions` on both existing alarms to the SNS topic
+- [x] SNS topic `${StackName}-alarms` with email subscription
+- [x] Email address stored in SSM (`/river-data-scraper/alert-email`), not in source code
+- [x] Both error and throttle alarms wired with `AlarmActions` + `OKActions`
 
 ---
 

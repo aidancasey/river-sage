@@ -30,32 +30,48 @@ build-RiverDataCollectorFunction:
 
 **Do not add `boto3`/`botocore` to any requirements file** — Lambda runtime provides them.
 
+## CI/CD
+
+Pushing to `main` triggers GitHub Actions (`.github/workflows/deploy.yml`):
+1. `test` — runs `pytest tests/ -v`
+2. `validate` — runs `sam validate --lint`
+3. `deploy` — `sam build` → `sam deploy` → build web app → sync to S3
+
+Auth uses **OIDC federation** — IAM role `github-actions-river-sage` with trust scoped to `aidancasey/river-sage:main`. No long-lived AWS keys stored anywhere.
+
 ## SAM deploy
 
+For manual deploys (CI handles this automatically):
+
 ```bash
-sam deploy --no-confirm-changeset
+sam deploy --config-env production --no-confirm-changeset
 ```
 
 `samconfig.toml` has all non-secret parameters pre-configured for production. It is safe to commit — **no secrets are stored in it**.
 
 ### Secrets
 
-All secrets live in **SSM Parameter Store** (eu-west-1), resolved by CloudFormation at deploy time:
+Twilio credentials live in **SSM Parameter Store** (eu-west-1) as `SecureString`. The Lambda reads them **at runtime** via `_get_ssm_or_env()` in `lambda_handler.py` — they are NOT resolved at deploy time.
 
 | SSM path | What it is |
 |---|---|
 | `/river-data-scraper/twilio/account_sid` | Twilio Account SID |
 | `/river-data-scraper/twilio/auth_token` | Twilio Auth Token |
 | `/river-data-scraper/twilio/whatsapp_from` | Twilio WhatsApp sender number |
+| `/river-data-scraper/alert-email` | Email for CloudWatch alarm notifications |
 
-To update a secret:
+The template passes SSM **paths** as `*_SSM` env vars (e.g., `TWILIO_ACCOUNT_SID_SSM`). The Lambda calls `ssm:GetParameter` with `WithDecryption=True` on first invocation and caches the result for warm reuse. For local development, set plain `TWILIO_ACCOUNT_SID` etc. in your environment.
+
+To rotate a secret:
 ```bash
 aws ssm put-parameter --name /river-data-scraper/twilio/auth_token \
   --value "new-value" --type SecureString --region eu-west-1 --overwrite
-sam deploy --no-confirm-changeset  # picks up the new value
+# No redeploy needed — Lambda picks up new value on next cold start
 ```
 
-**Never pass Twilio credentials via `--parameter-overrides` on the CLI** — the shell splits `rate(1 hour)` on the space, breaking the EventBridge schedule expression and causing a rollback.
+### Monitoring
+
+CloudWatch alarms for Lambda errors and throttles publish to SNS topic `${StackName}-alarms`, which emails the address in `/river-data-scraper/alert-email`.
 
 ## Lambda package size limit
 
@@ -74,7 +90,7 @@ The collector package should be ~60MB. If it bloats again, the usual culprits ar
 
 ## CloudFormation stack state
 
-Stack name: `river-data-scraper` (eu-west-1)
+Stack name: `river-data-scraper-prod` (eu-west-1)
 
 If the stack is in `UPDATE_ROLLBACK_COMPLETE`, it is stable — `sam deploy` will work, it just won't include whatever resource failed. Fix the underlying issue first, then deploy.
 
@@ -93,9 +109,9 @@ After deploying, run these checks:
 aws cloudformation describe-stacks --stack-name river-data-scraper \
   --region eu-west-1 --query 'Stacks[0].StackStatus'
 
-# 2. Confirm no OTEL layers and Twilio creds are present
+# 2. Confirm no OTEL layers and SSM paths are set (not raw credentials)
 aws lambda get-function-configuration --function-name river-data-scraper-collector \
-  --region eu-west-1 --query '{Layers:Layers,TwilioSID:Environment.Variables.TWILIO_ACCOUNT_SID}'
+  --region eu-west-1 --query '{Layers:Layers,TwilioSSM:Environment.Variables.TWILIO_ACCOUNT_SID_SSM}'
 
 # 3. Live invocation test (confirms all 7 stations collect successfully)
 aws lambda invoke --function-name river-data-scraper-collector \

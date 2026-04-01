@@ -2,25 +2,24 @@
 
 Complete guide for deploying the Irish Rivers Data Scraper backend and River Guru web app.
 
-## Quick Start
+## Quick Start — CI/CD (Primary)
 
-The simplest way to deploy everything:
+Push to `main` and GitHub Actions handles everything:
 
-```bash
-# Deploy to production (backend + web app)
-make deploy-prod
-```
+1. Runs tests (`pytest`) and validates the SAM template
+2. Builds and deploys Lambda functions via SAM
+3. Builds the Vue.js web app (fetches API URL from CloudFormation outputs)
+4. Syncs the web app to S3
 
-That's it! This single command will:
-1. Build the Vue.js web application
-2. Build the Lambda functions with SAM
-3. Deploy infrastructure to AWS
-4. Deploy the web app to S3
-5. Display the deployment URLs
+Auth uses **OIDC federation** with IAM role `github-actions-river-sage` — no AWS keys stored in GitHub.
 
-## Deployment Options
+See `.github/workflows/deploy.yml` for the full pipeline.
 
-### Option 1: Makefile (Recommended)
+## Manual Deployment Options
+
+For local deploys (e.g., debugging or when CI is unavailable):
+
+### Option 1: Makefile
 
 ```bash
 # Production
@@ -29,40 +28,21 @@ make deploy-prod
 # Development
 make deploy-dev
 
-# Staging
-make deploy-staging
-
 # View all available commands
 make help
 ```
 
-### Option 2: Deployment Script
+### Option 2: Manual Step-by-Step
 
 ```bash
-# Production
-./deploy.sh production
-
-# Development
-./deploy.sh dev
-
-# Staging
-./deploy.sh staging
-```
-
-### Option 3: Manual Step-by-Step
-
-```bash
-# 1. Build web app
-cd web
-npm install
-npm run build
-cd ..
-
-# 2. Build Lambda functions
+# 1. Build Lambda functions
 sam build
 
-# 3. Deploy infrastructure
+# 2. Deploy infrastructure
 sam deploy --config-env production --no-confirm-changeset
+
+# 3. Build web app (requires VITE_API_BASE_URL in web/.env)
+cd web && npm install && npm run build && cd ..
 
 # 4. Deploy web app
 aws s3 sync web/dist/ s3://river-guru-web-production/ \
@@ -107,32 +87,45 @@ Each environment has different settings in [samconfig.toml](samconfig.toml):
 - **Static Assets**: Deployed to S3 with caching headers
 - **API Integration**: Connects to API Gateway endpoints
 
-## First-Time Deployment
+## First-Time Setup
 
-If deploying for the first time:
+### CI/CD prerequisites (one-time)
+
+These are already configured for this project:
+- IAM OIDC provider for `token.actions.githubusercontent.com`
+- IAM role `github-actions-river-sage` with trust policy scoped to `aidancasey/river-sage:main`
+- `production` environment in GitHub repo settings
+
+### Secrets in SSM Parameter Store
+
+Twilio credentials are read by Lambda at runtime from SSM (not at deploy time):
+
+| SSM Path | Type |
+|---|---|
+| `/river-data-scraper/twilio/account_sid` | SecureString |
+| `/river-data-scraper/twilio/auth_token` | SecureString |
+| `/river-data-scraper/twilio/whatsapp_from` | SecureString |
+| `/river-data-scraper/alert-email` | String |
+
+No redeploy needed after rotating a secret — Lambda picks up the new value on next cold start.
+
+### Local development prerequisites
 
 ```bash
-# 1. Configure AWS credentials
-aws configure
-
-# 2. Install dependencies
-npm install -g aws-sam-cli
-cd web && npm install && cd ..
-
-# 3. Deploy
-make deploy-prod
-
-# 4. Note the output URLs
-# - Web App URL
-# - API Gateway URL
+aws configure                          # AWS CLI credentials
+pip install aws-sam-cli                # SAM CLI
+cd web && npm install && cd ..         # Web app dependencies
+cp web/.env.example web/.env           # Set VITE_API_BASE_URL
 ```
 
 ## Updating an Existing Deployment
 
-To update an already-deployed environment:
+The recommended approach is to push to `main` — CI handles the rest.
+
+For manual updates:
 
 ```bash
-# Update everything (recommended)
+# Update everything
 make deploy-prod
 
 # Or update just infrastructure
@@ -260,26 +253,20 @@ make teardown ENV=production
 
 ## Production Deployment Checklist
 
-Before deploying to production:
+CI/CD handles most of this automatically. For manual deploys:
 
-- [ ] AWS credentials configured
-- [ ] SAM CLI installed
-- [ ] Node.js 18+ installed
-- [ ] Reviewed samconfig.toml settings
-- [ ] Tested in dev/staging environment
-- [ ] Verified API endpoint in web/.env
-- [ ] Backup any existing data if needed
-- [ ] Confirmed IAM permissions
-- [ ] Ready to monitor CloudWatch logs
+Before deploying:
 
-After deploying to production:
+- [ ] Tests pass locally (`pytest tests/ -v`)
+- [ ] SAM template validates (`sam validate --lint`)
+- [ ] `web/.env` has correct `VITE_API_BASE_URL`
 
-- [ ] Verify web app loads: http://river-guru-web-production.s3-website-eu-west-1.amazonaws.com
+After deploying:
+
+- [ ] Verify web app loads: https://www.theriverguru.com
 - [ ] Test API: `make test-api`
-- [ ] Check data collection: Wait 1 hour, check S3 bucket
-- [ ] Monitor CloudWatch logs for errors
-- [ ] Set up CloudWatch alarms (already configured)
-- [ ] Document deployment in team wiki/docs
+- [ ] Check CloudWatch logs for errors
+- [ ] CloudWatch alarms will email if anything fails (SNS topic configured)
 
 ## Support
 

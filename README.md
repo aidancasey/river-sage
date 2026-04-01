@@ -46,6 +46,7 @@ Web App (Vue.js SPA) hosted on S3 static website
 
 ```
 river-data-scraper/
+├── .github/workflows/deploy.yml  # CI/CD pipeline (push to main → production)
 ├── template.yaml                 # SAM/CloudFormation template
 ├── samconfig.toml                # SAM deploy configuration (no secrets)
 ├── Makefile                      # Build and deploy automation
@@ -103,62 +104,55 @@ pytest tests/ -v
 
 ## Deployment
 
-### Build
+### CI/CD (Primary)
+
+Pushing to `main` triggers a GitHub Actions pipeline (`.github/workflows/deploy.yml`):
+
+1. **test** — runs `pytest tests/ -v`
+2. **validate** — runs `sam validate --lint`
+3. **deploy** — builds and deploys Lambda functions, then builds and deploys the web app
+
+Auth uses OIDC federation with IAM role `github-actions-river-sage` — no long-lived AWS keys.
+
+### Manual Deploy
+
+For local deploys (e.g., debugging):
+
+```bash
+make deploy-prod   # builds and deploys everything
+```
+
+Or step by step:
 
 ```bash
 sam build --no-cached
+sam deploy --config-env production --no-confirm-changeset
+cd web && npm install && npm run build
+aws s3 sync dist/ s3://river-guru-web-production/ --region eu-west-1 --delete
 ```
-
-The build uses `BuildMethod: makefile` for the Collector and Alerts API functions — SAM's Python pip builder ignores `RequirementsFilename` when `CodeUri` points to the project root. The Makefile targets install only the deps each function needs, cross-compiled for Linux arm64 Python 3.13.
-
-Check package sizes after building — the Lambda + layers combined must stay under 262MB:
-
-```bash
-du -sh .aws-sam/build/*/
-```
-
-### Deploy
-
-```bash
-sam deploy --no-confirm-changeset
-```
-
-`samconfig.toml` has all non-secret parameters pre-configured for production. No extra flags needed.
 
 ### Secrets
 
-Twilio credentials are stored in **AWS SSM Parameter Store** and resolved by CloudFormation at deploy time — they are not stored in any local file or committed to git.
+Twilio credentials are stored in **AWS SSM Parameter Store** as `SecureString` and read by the Lambda **at runtime** (not at deploy time). No secrets are stored in source code, environment variables, or GitHub.
 
 | SSM Path | Description |
 |---|---|
 | `/river-data-scraper/twilio/account_sid` | Twilio Account SID |
 | `/river-data-scraper/twilio/auth_token` | Twilio Auth Token |
 | `/river-data-scraper/twilio/whatsapp_from` | WhatsApp sender number |
+| `/river-data-scraper/alert-email` | Email for CloudWatch alarm notifications |
 
 To rotate a secret:
 ```bash
 aws ssm put-parameter --name /river-data-scraper/twilio/auth_token \
   --value "new-value" --type SecureString --region eu-west-1 --overwrite
-sam deploy --no-confirm-changeset
-```
-
-### Web App
-
-```bash
-cd web && npm install && npm run build
-aws s3 sync dist/ s3://river-guru-web-production/ --region eu-west-1 --delete
-```
-
-Or deploy everything (infrastructure + web app) in one command:
-
-```bash
-make deploy-prod
+# No redeploy needed — Lambda picks up new value on next cold start
 ```
 
 ## Production Environment
 
 **Region**: `eu-west-1`  
-**Stack**: `river-data-scraper`
+**Stack**: `river-data-scraper-prod`
 
 | Resource | Name |
 |---|---|
@@ -205,7 +199,7 @@ fields @timestamp, context.station_id, message
 | sort @timestamp desc
 ```
 
-CloudWatch Alarms are configured for Lambda errors and throttles on the collector function.
+CloudWatch Alarms for Lambda errors and throttles publish to an SNS topic that emails the address stored in `/river-data-scraper/alert-email` (SSM Parameter Store).
 
 ## Roadmap
 
