@@ -20,6 +20,31 @@ from .utils.retry import retry_with_backoff
 
 logger = StructuredLogger(__name__)
 
+# Cache for SSM parameter values (persists across warm Lambda invocations)
+_ssm_cache: Dict[str, str] = {}
+
+
+def _get_ssm_or_env(name: str) -> str:
+    """
+    Read a config value, checking SSM first (via *_SSM env var), then
+    falling back to a plain env var. Results are cached for the Lambda
+    lifetime so SSM is only called once per cold start.
+    """
+    if name in _ssm_cache:
+        return _ssm_cache[name]
+
+    ssm_path = os.environ.get(f"{name}_SSM", "")
+    if ssm_path:
+        import boto3
+        ssm = boto3.client("ssm")
+        resp = ssm.get_parameter(Name=ssm_path, WithDecryption=True)
+        value = resp["Parameter"]["Value"]
+        _ssm_cache[name] = value
+        return value
+
+    # Fall back to direct env var (for local development)
+    return os.environ.get(name, "")
+
 
 def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
     """
@@ -400,9 +425,9 @@ def _send_flow_alerts_if_needed(
         logger.info("No previous flow reading available, skipping alert check")
         return
 
-    account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
-    auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
-    from_number = os.environ.get("TWILIO_WHATSAPP_FROM", "")
+    account_sid = _get_ssm_or_env("TWILIO_ACCOUNT_SID")
+    auth_token = _get_ssm_or_env("TWILIO_AUTH_TOKEN")
+    from_number = _get_ssm_or_env("TWILIO_WHATSAPP_FROM")
 
     if not all([account_sid, auth_token, from_number]):
         logger.info("Twilio not configured, skipping flow alert")
