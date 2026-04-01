@@ -96,7 +96,7 @@ test_data/
 
 # SAM (AWS Serverless Application Model)
 .aws-sam/
-# Note: samconfig.toml should be version controlled (contains deployment config)
+# Note: samconfig.toml is safe to commit — secrets are in SSM Parameter Store
 
 # Terraform
 .terraform/

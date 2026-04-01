@@ -1,4 +1,4 @@
-.PHONY: help build deploy deploy-dev deploy-staging deploy-prod clean build-web deploy-web test
+.PHONY: help build deploy deploy-dev deploy-staging deploy-prod clean build-web deploy-web test build-RiverDataCollectorFunction build-AlertsApiFunction
 
 # Default environment
 ENV ?= production
@@ -19,6 +19,31 @@ help: ## Show this help message
 	@echo "  make deploy-prod    # Deploy everything to production"
 	@echo "  make deploy-dev     # Deploy everything to development"
 	@echo "  make build          # Build both Lambda and web app"
+
+# SAM makefile build targets — called by 'sam build' for each function.
+# ARTIFACTS_DIR is set by SAM to the staging directory for the Lambda zip.
+# Each target installs only the deps that function needs, then copies source.
+build-RiverDataCollectorFunction:
+	python3 -m pip install -r requirements-collector.txt \
+		--target "$(ARTIFACTS_DIR)" \
+		--platform manylinux2014_aarch64 \
+		--implementation cp \
+		--python-version 3.13 \
+		--only-binary=:all: \
+		--quiet
+	cp -r src "$(ARTIFACTS_DIR)/src"
+	cp -r api "$(ARTIFACTS_DIR)/api"
+
+build-AlertsApiFunction:
+	python3 -m pip install -r requirements-alerts.txt \
+		--target "$(ARTIFACTS_DIR)" \
+		--platform manylinux2014_aarch64 \
+		--implementation cp \
+		--python-version 3.13 \
+		--only-binary=:all: \
+		--quiet
+	cp -r src "$(ARTIFACTS_DIR)/src"
+	cp -r api "$(ARTIFACTS_DIR)/api"
 
 clean: ## Clean build artifacts
 	@echo "$(BLUE)Cleaning build artifacts...$(NC)"

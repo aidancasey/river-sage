@@ -56,9 +56,14 @@ package/
 lambda_function.zip
 *.zip
 
+# Web app (frontend - not needed in Lambda packages)
+web/
+
 # Scripts
 deploy.sh
+cleanup.sh
 setup.sh
+scripts/
 test_*.py
 analyze_*.py
 

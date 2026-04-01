@@ -1,4 +1,4 @@
 # Dependencies for the AlertsApiFunction Lambda function.
+# boto3/botocore intentionally excluded — provided by the Lambda runtime
 
-boto3>=1.28.0,<2.0.0
 twilio>=9.0.0,<10.0.0
