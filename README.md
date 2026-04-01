@@ -29,6 +29,14 @@ A low-cost, serverless system for aggregating water data from Irish rivers, incl
 - **AWS Hosted**: Static site on S3
 - **Integrated Deployment**: Single Makefile command deploys both backend and frontend
 
+### WhatsApp Flow Alerts (🚧 In Development)
+- **Daily Opt-In**: Users register their Irish mobile number once; opt in each day they plan to fish
+- **Threshold-Based Alerts**: WhatsApp message sent when Inniscarra flow changes by more than 2 m³/s
+- **No Account Required**: Phone number stored locally in the browser — no login needed
+- **Twilio-Powered**: Uses Twilio WhatsApp API for reliable message delivery
+- **Zero-Database Design**: Subscriber and opt-in state stored as JSON files in S3, consistent with existing architecture
+- **Low Cost**: Negligible additional running cost (<$2/month for typical usage)
+
 ## Architecture
 
 ###  Data Collection
@@ -59,17 +67,35 @@ EventBridge → Lambda (Python) → S3 Storage
 │ S3 Bucket   │  │  API Gateway     │
 │ (Static)    │  └────────┬─────────┘
 └─────────────┘           │
-                          ↓
-                   ┌──────────────┐
-                   │   Lambda     │
-                   │  (Data API)  │
-                   └──────┬───────┘
-                          │
+                 ┌────────┴──────────┐
+                 ↓                   ↓
+          ┌──────────────┐   ┌──────────────┐
+          │   Lambda     │   │   Lambda     │
+          │  (Data API)  │   │ (Alerts API) │
+          └──────┬───────┘   └──────┬───────┘
+                 │                  │
+                 └────────┬─────────┘
                           ↓
                    ┌──────────────┐
                    │  S3 Bucket   │
-                   │ (Flow Data)  │
+                   │  (Flow Data  │
+                   │  + Alerts)   │
                    └──────────────┘
+```
+
+### WhatsApp Flow Alerts
+```
+User opts in via web app
+         ↓
+POST /api/alerts/optin → Alerts API Lambda → S3 (alerts/daily_optins.json)
+
+Hourly data collection
+         ↓
+Collector Lambda detects flow change > 2 m³/s
+         ↓
+Reads today's opt-ins from S3
+         ↓
+Twilio WhatsApp API → Users' phones
 ```
 
 ## Project Structure
@@ -84,9 +110,12 @@ river-data-scraper/
 ├── deploy.sh                     # Deployment script
 ├── template.yaml                 # CloudFormation/SAM template
 ├── samconfig.toml                # SAM configuration
-├── requirements.txt              # Production dependencies
+├── requirements.txt              # Shared production dependencies
+├── requirements-collector.txt    # Collector Lambda dependencies (no Twilio)
+├── requirements-alerts.txt       # Alerts Lambda dependencies (includes Twilio)
 ├── requirements-dev.txt          # Development dependencies
 ├── .env.example                  # Environment variables template
+├── .env.secrets.example          # Secrets template (copy to .env.secrets, gitignored)
 ├── .gitignore                    # Git ignore patterns
 │
 ├── src/                          # Python Lambda functions
@@ -95,6 +124,8 @@ river-data-scraper/
 │   │   └── settings.py           # Configuration management
 │   ├── connectors/
 │   │   └── http_connector.py     # HTTP download logic
+│   ├── notifications/
+│   │   └── whatsapp_notifier.py  # WhatsApp alert logic (Twilio)
 │   ├── parsers/
 │   │   ├── esb_hydro_parser.py   # ESB PDF parsing logic
 │   │   └── waterlevel_parser.py  # waterlevel.ie CSV parsing
@@ -104,8 +135,9 @@ river-data-scraper/
 │       ├── logger.py             # Structured logging
 │       └── retry.py              # Retry with backoff
 │
-├── api/                          # Data API Lambda
-│   ├── data_api.py               # RESTful API handler
+├── api/                          # API Lambda functions
+│   ├── data_api.py               # River data REST API handler
+│   ├── alerts_api.py             # WhatsApp alerts API handler
 │   └── requirements.txt          # API dependencies
 │
 ├── web/                          # Vue.js web application
@@ -113,12 +145,13 @@ river-data-scraper/
 │   │   ├── App.vue               # Main app component
 │   │   ├── main.js               # Vue entry point
 │   │   ├── components/
-│   │   │   ├── FlowStatus.vue    # Current flow display
-│   │   │   ├── FlowChart.vue     # Historical flow chart
+│   │   │   ├── FlowStatus.vue        # Current flow display
+│   │   │   ├── FlowChart.vue         # Historical flow chart
 │   │   │   ├── WaterLevelStatus.vue  # Water level/temp display
-│   │   │   └── WaterLevelChart.vue   # Water level/temp charts
+│   │   │   ├── WaterLevelChart.vue   # Water level/temp charts
+│   │   │   └── AlertSubscription.vue # WhatsApp alert opt-in panel
 │   │   ├── services/
-│   │   │   └── api.js            # API client
+│   │   │   └── api.js            # API client (flow data + alerts)
 │   │   └── utils/
 │   │       └── date.js           # Date formatting
 │   ├── public/                   # Static assets
@@ -312,14 +345,32 @@ make dev-web             # Start web app dev server
 make clean               # Clean build artifacts
 ```
 
+### Secrets Configuration
+
+Deployment secrets (Twilio, Dash0) are stored outside source control in `.env.secrets`:
+
+```bash
+# Copy the template and fill in your values
+cp .env.secrets.example .env.secrets
+```
+
+The file is gitignored. `make deploy-prod` automatically sources it — no extra flags needed.
+
+| Secret | Description |
+|--------|-------------|
+| `DASH0_AUTH_TOKEN` | Dash0 observability token |
+| `TWILIO_ACCOUNT_SID` | Twilio Account SID |
+| `TWILIO_AUTH_TOKEN` | Twilio Auth Token |
+| `TWILIO_WHATSAPP_FROM` | Sender number e.g. `whatsapp:+14155238886` |
+
 ### What Gets Deployed
 
 The unified deployment creates:
 
 **Backend Infrastructure (via SAM):**
-- ✅ Lambda Functions (Data Collector + Data API)
+- ✅ Lambda Functions (Data Collector + Data API + Alerts API)
 - ✅ S3 Bucket for river data (with encryption and lifecycle)
-- ✅ API Gateway REST API (with CORS)
+- ✅ API Gateway REST API (with CORS) — `GET/POST /api/alerts/*` endpoints
 - ✅ EventBridge Rule (cron-based scheduling)
 - ✅ IAM Roles (with least-privilege permissions)
 - ✅ CloudWatch Logs (30-day retention)
@@ -356,6 +407,7 @@ The application is currently deployed to AWS in the `eu-west-1` region:
 **Deployed Resources**:
 - **Data Collector Lambda**: `river-data-scraper-prod-collector`
 - **Data API Lambda**: `river-data-scraper-prod-data-api`
+- **Alerts API Lambda**: `river-data-scraper-prod-alerts-api`
 - **Data S3 Bucket**: `river-data-ireland-prod`
 - **Web App S3 Bucket**: `river-guru-web-production`
 - **Schedule**: At 30 minutes past every hour (`cron(30 * * * ? *)`) - UTC time
@@ -366,6 +418,7 @@ The application is currently deployed to AWS in the `eu-west-1` region:
 - [Web S3 Bucket](https://s3.console.aws.amazon.com/s3/buckets/river-guru-web-production)
 - [Data Collector Lambda](https://console.aws.amazon.com/lambda/home?region=eu-west-1#/functions/river-data-scraper-prod-collector)
 - [Data API Lambda](https://console.aws.amazon.com/lambda/home?region=eu-west-1#/functions/river-data-scraper-prod-data-api)
+- [Alerts API Lambda](https://console.aws.amazon.com/lambda/home?region=eu-west-1#/functions/river-data-scraper-prod-alerts-api)
 - [CloudWatch Logs](https://console.aws.amazon.com/cloudwatch/home?region=eu-west-1#logsV2:log-groups)
 
 **Useful Commands**:
@@ -587,13 +640,23 @@ python -c "from src.lambda_handler import lambda_handler; ..."
 - [x] Multi-station display in web app (side-by-side layout)
 - [x] Separate charts for water level and temperature
 
-### Phase 4: Future Enhancements (Planned)
+### Phase 4: WhatsApp Flow Alerts 🚧 In Development
+- [x] Twilio WhatsApp integration
+- [x] Irish mobile number registration (E.164 normalisation)
+- [x] Daily opt-in UI — users subscribe each day they plan to fish
+- [x] Flow change detection in collector Lambda (>2 m³/s threshold)
+- [x] Subscriber and opt-in state stored in S3 (no database required)
+- [x] Alerts API Lambda (`register`, `optin`, `status` endpoints)
+- [x] AlertSubscription component in web app (below Inniscarra flow panel)
+- [x] Per-function requirements files to stay within Lambda size limits
+- [x] Secrets management via gitignored `.env.secrets` file
+
+### Phase 5: Future Enhancements (Planned)
 - [ ] **Additional Stations**: Add more rivers from waterlevel.ie network
 - [ ] **Weather Integration**: Correlate Met Éireann rainfall data with flow levels
 - [ ] **Data Quality**: Validation checks and anomaly detection
 - [ ] **Raw File Cleanup**: Auto-delete raw PDFs/CSVs after processing (30-90 day retention)
 - [ ] **Apple Watch API**: Lightweight endpoint for watchOS Shortcuts integration
-- [ ] **Push Notifications**: Flow level alerts via AWS SNS (email/SMS)
 - [ ] **User Accounts**: Preferences and personalized alerts
 - [ ] **Predictive Analytics**: ML-based flow predictions
 - [ ] **PWA Support**: Offline mode and install-to-home-screen

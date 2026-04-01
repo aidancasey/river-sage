@@ -6,8 +6,9 @@ on a schedule to download and process river data.
 """
 
 import json
+import os
 from datetime import datetime
-from typing import Dict, Any
+from typing import Dict, Any, Optional
 
 from .config.settings import Settings, DataSourceType
 from .connectors.http_connector import HTTPConnector
@@ -197,6 +198,11 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                 if settings.s3:
                     storage = S3Storage(settings.s3)
 
+                    # Read previous Inniscarra flow before overwriting latest JSON
+                    previous_inniscarra_flow = None
+                    if source_config.station_id == "inniscarra":
+                        previous_inniscarra_flow = _get_previous_inniscarra_flow(settings.s3.bucket_name)
+
                     # Upload raw data (PDF or CSV)
                     if source_config.source_type == DataSourceType.PDF:
                         raw_key = storage.upload_raw_pdf(
@@ -245,6 +251,14 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         station_id=source_config.station_id,
                         s3_keys=list(s3_keys.keys())
                     )
+
+                    # Send WhatsApp alerts for Inniscarra flow changes
+                    if source_config.station_id == "inniscarra" and hasattr(parsed_data.current_reading, "flow_rate_m3s"):
+                        _send_flow_alerts_if_needed(
+                            previous_flow=previous_inniscarra_flow,
+                            current_flow=parsed_data.current_reading.flow_rate_m3s,
+                            s3_bucket=settings.s3.bucket_name,
+                        )
                 else:
                     logger.warning(
                         "S3 not configured, skipping upload",
@@ -341,6 +355,62 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             },
             "body": json.dumps(error_response)
         }
+
+
+def _get_previous_inniscarra_flow(s3_bucket: str) -> Optional[float]:
+    """
+    Read the previously stored Inniscarra latest JSON to get the last known flow rate.
+    Returns None if not available.
+    """
+    import boto3
+    from botocore.exceptions import ClientError
+
+    try:
+        s3 = boto3.client("s3")
+        response = s3.get_object(Bucket=s3_bucket, Key="aggregated/inniscarra_latest.json")
+        data = json.loads(response["Body"].read().decode("utf-8"))
+        return data.get("latest_reading", {}).get("flow_rate_m3s")
+    except ClientError as e:
+        if e.response["Error"]["Code"] in ("NoSuchKey", "404"):
+            return None
+        logger.warning("Could not read previous Inniscarra flow", error=str(e))
+        return None
+    except Exception as e:
+        logger.warning("Could not read previous Inniscarra flow", error=str(e))
+        return None
+
+
+def _send_flow_alerts_if_needed(
+    previous_flow: Optional[float],
+    current_flow: float,
+    s3_bucket: str,
+) -> None:
+    """
+    Trigger WhatsApp alerts if the flow has changed enough and Twilio is configured.
+    """
+    if previous_flow is None:
+        logger.info("No previous flow reading available, skipping alert check")
+        return
+
+    account_sid = os.environ.get("TWILIO_ACCOUNT_SID", "")
+    auth_token = os.environ.get("TWILIO_AUTH_TOKEN", "")
+    from_number = os.environ.get("TWILIO_WHATSAPP_FROM", "")
+
+    if not all([account_sid, auth_token, from_number]):
+        logger.info("Twilio not configured, skipping flow alert")
+        return
+
+    from .notifications.whatsapp_notifier import send_flow_alert
+
+    alert_result = send_flow_alert(
+        previous_flow=previous_flow,
+        current_flow=current_flow,
+        bucket=s3_bucket,
+        twilio_account_sid=account_sid,
+        twilio_auth_token=auth_token,
+        twilio_from=from_number,
+    )
+    logger.info("Flow alert check complete", **alert_result)
 
 
 # For local testing

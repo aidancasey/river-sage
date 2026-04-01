@@ -19,6 +19,9 @@ pydantic>=2.0.0,<3.0.0
 # PDF parsing for ESB Hydro flow data
 pdfplumber>=0.10.0,<1.0.0
 
+# WhatsApp notifications via Twilio
+twilio>=9.0.0,<10.0.0
+
 # Note: opentelemetry-api is provided by the ADOT Lambda layer at runtime.
 # Do NOT add it here - bundling a separate version causes import conflicts.
 

@@ -53,6 +53,10 @@
         <div v-for="station in flowStations" :key="station.id">
           <h3 class="text-lg font-semibold text-gray-800 mb-4">{{ station.name }} - Flow Rate</h3>
           <FlowStatus :station-id="station.id" />
+          <!-- WhatsApp flow alerts (Inniscarra only) -->
+          <div v-if="station.id === 'inniscarra'" class="mt-4">
+            <AlertSubscription />
+          </div>
           <div class="mt-4">
             <FlowChart :station-id="station.id" />
           </div>
@@ -197,6 +201,7 @@ import RiverSelector from './components/RiverSelector.vue';
 import SunTimes from './components/SunTimes.vue';
 import WeatherForecast from './components/WeatherForecast.vue';
 import DataSources from './components/DataSources.vue';
+import AlertSubscription from './components/AlertSubscription.vue';
 import { initFlagsmith, isFeatureEnabled } from './services/flagsmith.js';
 
 // River Guru quotes - fun and enlightening wisdom for fly fishermen

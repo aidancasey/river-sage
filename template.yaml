@@ -56,6 +56,23 @@ Parameters:
     Default: ""
     Description: Dash0 authentication token (Bearer token)
 
+  TwilioAccountSid:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Twilio Account SID for WhatsApp alerts
+
+  TwilioAuthToken:
+    Type: String
+    NoEcho: true
+    Default: ""
+    Description: Twilio Auth Token for WhatsApp alerts
+
+  TwilioWhatsappFrom:
+    Type: String
+    Default: ""
+    Description: Twilio WhatsApp sender number (e.g. whatsapp:+14155238886)
+
 Resources:
   # NOTE: S3 bucket for river data (river-data-ireland-prod) exists outside CloudFormation
   # Reference it directly using the S3BucketName parameter
@@ -122,6 +139,10 @@ Resources:
       Description: Downloads and processes river data (flow, level, temperature) from multiple sources
       CodeUri: .
       Handler: src.lambda_handler.lambda_handler
+    Metadata:
+      BuildProperties:
+        UseContainer: false
+        RequirementsFilename: requirements-collector.txt
       Role: !GetAtt RiverDataCollectorRole.Arn
       Layers:
         - arn:aws:lambda:eu-west-1:901920570463:layer:aws-otel-python-arm64-ver-1-32-0:2
@@ -138,6 +159,9 @@ Resources:
           S3_REGION: !Ref AWS::Region
           S3_ENABLE_ENCRYPTION: "true"
           S3_STORAGE_CLASS: STANDARD
+          TWILIO_ACCOUNT_SID: !Ref TwilioAccountSid
+          TWILIO_AUTH_TOKEN: !Ref TwilioAuthToken
+          TWILIO_WHATSAPP_FROM: !Ref TwilioWhatsappFrom
           # Data sources configuration (JSON array)
           DATA_SOURCES_JSON: |
             [
@@ -209,6 +233,111 @@ Resources:
       Tags:
         Project: IrishRiversDataScraper
         Environment: !Ref Environment
+
+  # ========================================
+  # Phase 3: WhatsApp Flow Alerts
+  # ========================================
+
+  # IAM Role for Alerts API Lambda
+  AlertsApiLambdaRole:
+    Type: AWS::IAM::Role
+    Properties:
+      RoleName: !Sub ${AWS::StackName}-alerts-api-role
+      AssumeRolePolicyDocument:
+        Version: '2012-10-17'
+        Statement:
+          - Effect: Allow
+            Principal:
+              Service: lambda.amazonaws.com
+            Action: sts:AssumeRole
+      ManagedPolicyArns:
+        - arn:aws:iam::aws:policy/service-role/AWSLambdaBasicExecutionRole
+      Policies:
+        - PolicyName: S3AlertsAccess
+          PolicyDocument:
+            Version: '2012-10-17'
+            Statement:
+              - Effect: Allow
+                Action:
+                  - s3:GetObject
+                  - s3:PutObject
+                  - s3:ListBucket
+                Resource:
+                  - !Sub arn:aws:s3:::${S3BucketName}
+                  - !Sub arn:aws:s3:::${S3BucketName}/alerts/*
+      Tags:
+        - Key: Project
+          Value: RiverGuruWebApp
+        - Key: Environment
+          Value: !Ref Environment
+
+  # Lambda function for Alerts API
+  AlertsApiFunction:
+    Type: AWS::Serverless::Function
+    Properties:
+      FunctionName: !Sub ${AWS::StackName}-alerts-api
+      Description: Manages WhatsApp flow alert subscriptions (register, opt-in, status)
+      CodeUri: .
+      Handler: api.alerts_api.lambda_handler
+      Role: !GetAtt AlertsApiLambdaRole.Arn
+      Timeout: 30
+      MemorySize: 256
+      Environment:
+        Variables:
+          S3_BUCKET_NAME: !Ref S3BucketName
+          S3_REGION: !Ref AWS::Region
+          LOG_LEVEL: INFO
+      Events:
+        RegisterPhone:
+          Type: Api
+          Properties:
+            Path: /api/alerts/register
+            Method: POST
+            RestApiId: !Ref RiverGuruApi
+        OptInToday:
+          Type: Api
+          Properties:
+            Path: /api/alerts/optin
+            Method: POST
+            RestApiId: !Ref RiverGuruApi
+        GetStatus:
+          Type: Api
+          Properties:
+            Path: /api/alerts/status
+            Method: GET
+            RestApiId: !Ref RiverGuruApi
+        OptionsRegister:
+          Type: Api
+          Properties:
+            Path: /api/alerts/register
+            Method: OPTIONS
+            RestApiId: !Ref RiverGuruApi
+        OptionsOptin:
+          Type: Api
+          Properties:
+            Path: /api/alerts/optin
+            Method: OPTIONS
+            RestApiId: !Ref RiverGuruApi
+        OptionsStatus:
+          Type: Api
+          Properties:
+            Path: /api/alerts/status
+            Method: OPTIONS
+            RestApiId: !Ref RiverGuruApi
+      Tags:
+        Project: RiverGuruWebApp
+        Environment: !Ref Environment
+    Metadata:
+      BuildProperties:
+        UseContainer: false
+        RequirementsFilename: requirements-alerts.txt
+
+  # CloudWatch Log Group for Alerts API Lambda
+  AlertsApiLogGroup:
+    Type: AWS::Logs::LogGroup
+    Properties:
+      LogGroupName: !Sub /aws/lambda/${AlertsApiFunction}
+      RetentionInDays: 30
 
   # CloudWatch Log Group with retention
   RiverDataCollectorLogGroup:
@@ -363,7 +492,7 @@ Resources:
       Name: !Sub ${AWS::StackName}-api
       StageName: !Ref Environment
       Cors:
-        AllowMethods: "'GET,OPTIONS'"
+        AllowMethods: "'GET,POST,OPTIONS'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
       Tags:
