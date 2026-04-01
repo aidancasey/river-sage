@@ -66,7 +66,12 @@ jobs:
         run: sam deploy --config-env production --no-confirm-changeset
 
       - name: Build web app
-        run: cd web && npm install && npm run build
+        run: |
+          export VITE_API_BASE_URL=$(aws cloudformation describe-stacks \
+            --stack-name river-data-scraper-prod --region eu-west-1 \
+            --query 'Stacks[0].Outputs[?OutputKey==`RiverGuruApiUrl`].OutputValue' \
+            --output text)
+          cd web && npm install && npm run build
 
       - name: Deploy web app to S3
         run: |
