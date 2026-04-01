@@ -50,21 +50,6 @@ Parameters:
     Default: ""
     Description: Comma-separated list of allowed CORS origins for the alerts API (e.g. https://riverguru.ie)
 
-  TwilioAccountSid:
-    Type: AWS::SSM::Parameter::Value<String>
-    Default: /river-data-scraper/twilio/account_sid
-    Description: SSM path for Twilio Account SID
-
-  TwilioAuthToken:
-    Type: AWS::SSM::Parameter::Value<String>
-    Default: /river-data-scraper/twilio/auth_token
-    Description: SSM path for Twilio Auth Token
-
-  TwilioWhatsappFrom:
-    Type: AWS::SSM::Parameter::Value<String>
-    Default: /river-data-scraper/twilio/whatsapp_from
-    Description: SSM path for Twilio WhatsApp sender number
-
 Resources:
   # NOTE: S3 bucket for river data (river-data-ireland-prod) exists outside CloudFormation
   # Reference it directly using the S3BucketName parameter
@@ -121,9 +106,9 @@ Resources:
           S3_REGION: !Ref AWS::Region
           S3_ENABLE_ENCRYPTION: "true"
           S3_STORAGE_CLASS: STANDARD
-          TWILIO_ACCOUNT_SID: !Ref TwilioAccountSid
-          TWILIO_AUTH_TOKEN: !Ref TwilioAuthToken
-          TWILIO_WHATSAPP_FROM: !Ref TwilioWhatsappFrom
+          TWILIO_ACCOUNT_SID: '{{resolve:ssm-secure:/river-data-scraper/twilio/account_sid}}'
+          TWILIO_AUTH_TOKEN: '{{resolve:ssm-secure:/river-data-scraper/twilio/auth_token}}'
+          TWILIO_WHATSAPP_FROM: '{{resolve:ssm-secure:/river-data-scraper/twilio/whatsapp_from}}'
           # Data sources configuration (JSON array)
           DATA_SOURCES_JSON: |
             [
