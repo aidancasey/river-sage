@@ -56,6 +56,11 @@ Parameters:
     Default: ""
     Description: Dash0 authentication token (Bearer token)
 
+  AllowedOrigin:
+    Type: String
+    Default: ""
+    Description: Comma-separated list of allowed CORS origins for the alerts API (e.g. https://riverguru.ie)
+
   TwilioAccountSid:
     Type: String
     NoEcho: true
@@ -287,6 +292,7 @@ Resources:
           S3_BUCKET_NAME: !Ref S3BucketName
           S3_REGION: !Ref AWS::Region
           LOG_LEVEL: INFO
+          ALLOWED_ORIGIN: !Ref AllowedOrigin
       Events:
         RegisterPhone:
           Type: Api
@@ -300,11 +306,11 @@ Resources:
             Path: /api/alerts/optin
             Method: POST
             RestApiId: !Ref RiverGuruApi
-        GetStatus:
+        PostStatus:
           Type: Api
           Properties:
             Path: /api/alerts/status
-            Method: GET
+            Method: POST
             RestApiId: !Ref RiverGuruApi
         OptionsRegister:
           Type: Api
@@ -414,7 +420,10 @@ Resources:
                   - s3:ListBucket
                 Resource:
                   - !Sub arn:aws:s3:::${S3BucketName}
-                  - !Sub arn:aws:s3:::${S3BucketName}/*
+                  # Explicitly scoped to river data prefixes — alerts/ (subscriber PII) is excluded
+                  - !Sub arn:aws:s3:::${S3BucketName}/aggregated/*
+                  - !Sub arn:aws:s3:::${S3BucketName}/parsed/*
+                  - !Sub arn:aws:s3:::${S3BucketName}/raw/*
       Tags:
         - Key: Project
           Value: RiverGuruWebApp
@@ -495,6 +504,13 @@ Resources:
         AllowMethods: "'GET,POST,OPTIONS'"
         AllowHeaders: "'Content-Type,X-Amz-Date,Authorization,X-Api-Key,X-Amz-Security-Token'"
         AllowOrigin: "'*'"
+      # Throttle all routes: max 2 requests/sec sustained, burst of 5
+      # Prevents abuse of the unauthenticated alerts endpoints
+      MethodSettings:
+        - HttpMethod: "*"
+          ResourcePath: "/*"
+          ThrottlingRateLimit: 2
+          ThrottlingBurstLimit: 5
       Tags:
         Project: RiverGuruWebApp
         Environment: !Ref Environment

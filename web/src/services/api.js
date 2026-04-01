@@ -6,8 +6,11 @@
 
 import axios from 'axios';
 
-// API base URL - will be set via environment variable for production
-const API_BASE_URL = import.meta.env.VITE_API_BASE_URL || 'https://3su2ubk6j2.execute-api.eu-west-1.amazonaws.com/production';
+// API base URL - must be set via VITE_API_BASE_URL environment variable
+const API_BASE_URL = import.meta.env.VITE_API_BASE_URL;
+if (!API_BASE_URL) {
+  throw new Error('VITE_API_BASE_URL environment variable is required');
+}
 
 // Create axios instance with default config
 const apiClient = axios.create({
@@ -172,7 +175,7 @@ export async function optInToday(phone) {
  */
 export async function getAlertStatus(phone) {
   try {
-    const response = await apiClient.get('/api/alerts/status', { params: { phone } });
+    const response = await apiClient.post('/api/alerts/status', { phone });
     return response.data;
   } catch (error) {
     const msg = error.response?.data?.error || error.message;

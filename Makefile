@@ -66,6 +66,7 @@ deploy-infrastructure: ## Deploy infrastructure with SAM (secrets loaded from .e
 	[ -n "$$TWILIO_ACCOUNT_SID" ] && OVERRIDES="$$OVERRIDES TwilioAccountSid=$$TWILIO_ACCOUNT_SID"; \
 	[ -n "$$TWILIO_AUTH_TOKEN" ] && OVERRIDES="$$OVERRIDES TwilioAuthToken=$$TWILIO_AUTH_TOKEN"; \
 	[ -n "$$TWILIO_WHATSAPP_FROM" ] && OVERRIDES="$$OVERRIDES TwilioWhatsappFrom=$$TWILIO_WHATSAPP_FROM"; \
+	[ -n "$$ALLOWED_ORIGIN" ] && OVERRIDES="$$OVERRIDES AllowedOrigin=$$ALLOWED_ORIGIN"; \
 	sam deploy --config-env $(ENV) --no-confirm-changeset \
 		$$([ -n "$$OVERRIDES" ] && echo "--parameter-overrides $$OVERRIDES"); \
 	echo "$(GREEN)✓ Infrastructure deployed$(NC)"
