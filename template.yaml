@@ -304,6 +304,15 @@ Resources:
       LogGroupName: !Sub /aws/lambda/${RiverDataCollectorFunction}
       RetentionInDays: 30
 
+  # SNS Topic for alarm notifications
+  AlarmNotificationTopic:
+    Type: AWS::SNS::Topic
+    Properties:
+      TopicName: !Sub ${AWS::StackName}-alarms
+      Subscription:
+        - Protocol: email
+          Endpoint: '{{resolve:ssm:/river-data-scraper/alert-email}}'
+
   # CloudWatch Alarm for Lambda errors
   RiverDataCollectorErrorAlarm:
     Type: AWS::CloudWatch::Alarm
@@ -321,6 +330,10 @@ Resources:
         - Name: FunctionName
           Value: !Ref RiverDataCollectorFunction
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+      OKActions:
+        - !Ref AlarmNotificationTopic
 
   # CloudWatch Alarm for Lambda throttling
   RiverDataCollectorThrottleAlarm:
@@ -339,6 +352,10 @@ Resources:
         - Name: FunctionName
           Value: !Ref RiverDataCollectorFunction
       TreatMissingData: notBreaching
+      AlarmActions:
+        - !Ref AlarmNotificationTopic
+      OKActions:
+        - !Ref AlarmNotificationTopic
 
   # ========================================
   # Phase 2: River Guru Web App Resources
