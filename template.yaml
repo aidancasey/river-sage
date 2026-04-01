@@ -144,10 +144,6 @@ Resources:
       Description: Downloads and processes river data (flow, level, temperature) from multiple sources
       CodeUri: .
       Handler: src.lambda_handler.lambda_handler
-    Metadata:
-      BuildProperties:
-        UseContainer: false
-        RequirementsFilename: requirements-collector.txt
       Role: !GetAtt RiverDataCollectorRole.Arn
       Layers:
         - arn:aws:lambda:eu-west-1:901920570463:layer:aws-otel-python-arm64-ver-1-32-0:2
@@ -238,6 +234,11 @@ Resources:
       Tags:
         Project: IrishRiversDataScraper
         Environment: !Ref Environment
+    Metadata:
+      BuildMethod: python3.13
+      BuildProperties:
+        UseContainer: false
+        RequirementsFilename: requirements-collector.txt
 
   # ========================================
   # Phase 3: WhatsApp Flow Alerts
