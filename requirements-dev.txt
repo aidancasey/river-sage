@@ -39,7 +39,7 @@ ipython>=8.12.0,<9.0.0
 ipdb>=0.13.13,<1.0.0
 
 # AWS testing
-moto>=4.2.0,<5.0.0  # Mock AWS services
+moto>=5.0.0  # Mock AWS services (mock_aws requires 5+)
 localstack-client>=2.0,<3.0.0
 
 # Performance profiling
