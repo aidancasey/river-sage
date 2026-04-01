@@ -75,26 +75,10 @@ deploy-web: ## Deploy web app to S3 (requires ENV to be set)
 		--cache-control "max-age=31536000,public"
 	@echo "$(GREEN)✓ Web app deployed to river-guru-web-$(ENV)$(NC)"
 
-deploy-infrastructure: ## Deploy infrastructure with SAM (secrets loaded from .env.secrets)
-	@if [ -f ".env.secrets" ]; then \
-		export $$(grep -v '^#' .env.secrets | xargs); \
-	fi; \
-	if [ -z "$$DASH0_AUTH_TOKEN" ]; then \
-		echo "$(YELLOW)WARNING: DASH0_AUTH_TOKEN is not set. Deploying without Dash0 observability.$(NC)"; \
-	fi; \
-	if [ -z "$$TWILIO_ACCOUNT_SID" ]; then \
-		echo "$(YELLOW)WARNING: TWILIO_ACCOUNT_SID not set. WhatsApp alerts will be disabled.$(NC)"; \
-	fi; \
-	echo "$(BLUE)Deploying infrastructure with SAM ($(ENV))...$(NC)"; \
-	OVERRIDES=""; \
-	[ -n "$$DASH0_AUTH_TOKEN" ] && OVERRIDES="$$OVERRIDES Dash0AuthToken=$$DASH0_AUTH_TOKEN"; \
-	[ -n "$$TWILIO_ACCOUNT_SID" ] && OVERRIDES="$$OVERRIDES TwilioAccountSid=$$TWILIO_ACCOUNT_SID"; \
-	[ -n "$$TWILIO_AUTH_TOKEN" ] && OVERRIDES="$$OVERRIDES TwilioAuthToken=$$TWILIO_AUTH_TOKEN"; \
-	[ -n "$$TWILIO_WHATSAPP_FROM" ] && OVERRIDES="$$OVERRIDES TwilioWhatsappFrom=$$TWILIO_WHATSAPP_FROM"; \
-	[ -n "$$ALLOWED_ORIGIN" ] && OVERRIDES="$$OVERRIDES AllowedOrigin=$$ALLOWED_ORIGIN"; \
-	sam deploy --config-env $(ENV) --no-confirm-changeset \
-		$$([ -n "$$OVERRIDES" ] && echo "--parameter-overrides $$OVERRIDES"); \
-	echo "$(GREEN)✓ Infrastructure deployed$(NC)"
+deploy-infrastructure: ## Deploy infrastructure with SAM
+	@echo "$(BLUE)Deploying infrastructure with SAM ($(ENV))...$(NC)"
+	sam deploy --config-env $(ENV) --no-confirm-changeset
+	@echo "$(GREEN)✓ Infrastructure deployed$(NC)"
 
 deploy: build deploy-infrastructure deploy-web ## Build and deploy everything
 	@echo ""
