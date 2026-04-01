@@ -10,10 +10,12 @@ Tests cover:
 - Trend calculation
 """
 
+import gzip
 import json
 import pytest
-from datetime import datetime, timedelta
+from datetime import datetime, timedelta, timezone
 from unittest.mock import patch, MagicMock
+from io import BytesIO
 import sys
 import os
 
@@ -119,49 +121,64 @@ class TestHandleLatestFlow:
     """Test /latest endpoint handler."""
 
     def test_successful_latest_flow(self, mock_s3):
-        """Should return latest flow data from S3."""
-        # Mock S3 response
+        """Should return latest flow data from all stations."""
+        # Mock S3 aggregated station data
         mock_data = {
-            'timestamp': '2025-12-06T14:03:00Z',
-            'flow_rate': 15.5,
-            'station_name': 'Inniscarra',
-            'river': 'River Lee'
+            'station': 'Inniscarra Dam',
+            'river': 'River Lee',
+            'latest_reading': {
+                'timestamp': '2025-12-06T14:03:00Z',
+                'flow_rate_m3s': 15.5
+            }
         }
         mock_s3.get_object.return_value = {
             'Body': MagicMock(read=lambda: json.dumps(mock_data).encode())
         }
+        # Set up NoSuchKey exception class so except clauses work
+        mock_s3.exceptions.NoSuchKey = type('NoSuchKey', (Exception,), {})
 
         event = {
             'httpMethod': 'GET',
             'path': '/api/latest',
-            'queryStringParameters': None
+            'queryStringParameters': {'station': 'inniscarra'}
         }
 
         response = handle_latest_flow(event)
 
         assert response['statusCode'] == 200
         body = json.loads(response['body'])
-        assert body['currentFlow'] == 15.5
-        assert body['stationId'] == 'inniscarra'
-        assert body['status'] == 'normal'
+        assert 'stations' in body
+        assert len(body['stations']) == 1
+        assert body['stations'][0]['stationId'] == 'inniscarra'
+        assert body['stations'][0]['flowRate'] == 15.5
+        assert body['stations'][0]['status'] == 'normal'
 
     def test_latest_flow_not_found(self, mock_s3):
-        """Should return 404 when data not found."""
-        mock_s3.get_object.side_effect = mock_s3.exceptions.NoSuchKey(
+        """Should return 404 when no data available from any station."""
+        NoSuchKey = type('NoSuchKey', (Exception,), {})
+        mock_s3.exceptions.NoSuchKey = NoSuchKey
+        mock_s3.get_object.side_effect = NoSuchKey(
             {'Error': {'Code': 'NoSuchKey'}}, 'GetObject'
         )
-        mock_s3.exceptions = MagicMock()
-        mock_s3.exceptions.NoSuchKey = type('NoSuchKey', (Exception,), {})
 
         event = {
             'httpMethod': 'GET',
             'path': '/api/latest',
-            'queryStringParameters': None
+            'queryStringParameters': {'station': 'inniscarra'}
         }
 
         response = handle_latest_flow(event)
 
         assert response['statusCode'] == 404
+
+
+def _make_gzipped_s3_body(data: dict) -> MagicMock:
+    """Helper to create a gzipped S3 Body mock matching how GzipFile reads it."""
+    buf = BytesIO()
+    with gzip.GzipFile(fileobj=buf, mode='wb') as gz:
+        gz.write(json.dumps(data).encode())
+    buf.seek(0)
+    return buf
 
 
 @patch('data_api.s3_client')
@@ -170,20 +187,20 @@ class TestHandleHistoricalFlow:
 
     def test_successful_historical_flow(self, mock_s3):
         """Should return historical flow data with statistics."""
-        # Mock historical data
-        now = datetime.now()
+        now = datetime.now(timezone.utc)
         mock_data = {
-            'data_points': [
+            'historical_readings': [
                 {
-                    'timestamp': (now - timedelta(hours=i)).isoformat() + 'Z',
-                    'flow': 15.0 + i
+                    'timestamp': (now - timedelta(hours=i)).isoformat(),
+                    'flow_rate_m3s': 15.0 + i
                 }
                 for i in range(24, 0, -1)
             ]
         }
         mock_s3.get_object.return_value = {
-            'Body': MagicMock(read=lambda: json.dumps(mock_data).encode())
+            'Body': _make_gzipped_s3_body(mock_data)
         }
+        mock_s3.exceptions.NoSuchKey = type('NoSuchKey', (Exception,), {})
 
         event = {
             'httpMethod': 'GET',
@@ -202,12 +219,20 @@ class TestHandleHistoricalFlow:
 
     def test_historical_flow_with_days_parameter(self, mock_s3):
         """Should support days parameter."""
+        now = datetime.now(timezone.utc)
         mock_data = {
-            'data_points': []
+            'historical_readings': [
+                {
+                    'timestamp': (now - timedelta(hours=i)).isoformat(),
+                    'flow_rate_m3s': 10.0 + i
+                }
+                for i in range(48, 0, -1)
+            ]
         }
         mock_s3.get_object.return_value = {
-            'Body': MagicMock(read=lambda: json.dumps(mock_data).encode())
+            'Body': _make_gzipped_s3_body(mock_data)
         }
+        mock_s3.exceptions.NoSuchKey = type('NoSuchKey', (Exception,), {})
 
         event = {
             'httpMethod': 'GET',

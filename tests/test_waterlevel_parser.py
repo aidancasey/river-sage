@@ -160,15 +160,15 @@ def test_combine_readings(parser):
 
 
 def test_combine_readings_missing_temperature(parser):
-    """Test combining when temperature is missing."""
+    """Test combining when temperature is missing (outside 2-hour window)."""
     level_readings = [
         (datetime(2025, 12, 6, 14, 30, 0), 1.59),
-        (datetime(2025, 12, 6, 14, 15, 0), 1.58),
+        (datetime(2025, 12, 6, 11, 0, 0), 1.58),
     ]
 
     temp_readings = [
         (datetime(2025, 12, 6, 14, 30, 0), 8.5),
-        # Missing 14:15
+        # No temp within 2 hours of 11:00
     ]
 
     combined = parser._combine_readings(level_readings, temp_readings)
@@ -177,7 +177,7 @@ def test_combine_readings_missing_temperature(parser):
     assert combined[0].water_level_m == 1.59
     assert combined[0].temperature_c == 8.5
     assert combined[1].water_level_m == 1.58
-    assert combined[1].temperature_c is None  # No matching temp
+    assert combined[1].temperature_c is None  # No matching temp within 2-hour window
 
 
 def test_find_matching_temp_exact_match(parser):
@@ -203,13 +203,13 @@ def test_find_matching_temp_within_window(parser):
 
 
 def test_find_matching_temp_outside_window(parser):
-    """Test that temperature outside 5-minute window returns None."""
+    """Test that temperature outside 2-hour window returns None."""
     temp_dict = {
         datetime(2025, 12, 6, 14, 30, 0): 8.5,
     }
 
-    # 10 minutes after - should not match
-    temp = parser._find_matching_temp(datetime(2025, 12, 6, 14, 40, 0), temp_dict)
+    # 2 hours 1 minute after - should not match
+    temp = parser._find_matching_temp(datetime(2025, 12, 6, 16, 31, 0), temp_dict)
     assert temp is None
 
 
