@@ -359,8 +359,16 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
 
 def _get_previous_inniscarra_flow(s3_bucket: str) -> Optional[float]:
     """
-    Read the previously stored Inniscarra latest JSON to get the last known flow rate.
-    Returns None if not available.
+    Read the previously stored Inniscarra latest JSON to get the reference flow for
+    alert comparison.
+
+    Prefers `last_alerted_flow` (the flow at the time the last alert fired) so that
+    alert detection is not fooled by the ESB Hydro PDF returning a stale reading —
+    if consecutive Lambda runs see the same PDF value, the delta against
+    `last_alerted_flow` still reflects the true cumulative change since the last alert.
+
+    Falls back to `latest_reading.flow_rate_m3s` if `last_alerted_flow` is absent
+    (e.g. on first run).
     """
     import boto3
     from botocore.exceptions import ClientError
@@ -369,7 +377,7 @@ def _get_previous_inniscarra_flow(s3_bucket: str) -> Optional[float]:
         s3 = boto3.client("s3")
         response = s3.get_object(Bucket=s3_bucket, Key="aggregated/inniscarra_latest.json")
         data = json.loads(response["Body"].read().decode("utf-8"))
-        return data.get("latest_reading", {}).get("flow_rate_m3s")
+        return data.get("last_alerted_flow") or data.get("latest_reading", {}).get("flow_rate_m3s")
     except ClientError as e:
         if e.response["Error"]["Code"] in ("NoSuchKey", "404"):
             return None

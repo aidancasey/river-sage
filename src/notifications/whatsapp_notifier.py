@@ -15,10 +15,11 @@ import re
 from datetime import date, timezone
 from typing import List, Optional
 import boto3
-import logging
 from botocore.exceptions import ClientError
 
-logger = logging.getLogger(__name__)
+from ..utils.logger import StructuredLogger
+
+logger = StructuredLogger(__name__)
 
 # Minimum absolute change in m³/s that triggers an alert
 FLOW_CHANGE_THRESHOLD_M3S = 2.0
@@ -88,9 +89,9 @@ def register_subscriber(phone: str, bucket: str) -> dict:
     if normalized not in subscribers:
         subscribers[normalized] = {"registered_at": date.today().isoformat()}
         _save_json_to_s3(s3, bucket, S3_SUBSCRIBERS_KEY, subscribers)
-        logger.info(f"Registered new subscriber: {normalized[:8]}***")
+        logger.info("Registered new subscriber", phone_prefix=normalized[:8])
     else:
-        logger.info(f"Subscriber already registered: {normalized[:8]}***")
+        logger.info("Subscriber already registered", phone_prefix=normalized[:8])
 
     return {"success": True, "phone": normalized}
 
@@ -124,7 +125,7 @@ def opt_in_today(phone: str, bucket: str) -> dict:
     daily_optins[normalized] = today
     _save_json_to_s3(s3, bucket, S3_DAILY_OPTINS_KEY, daily_optins)
 
-    logger.info(f"Opted in for today ({today}): {normalized[:8]}***")
+    logger.info("Opted in for today", date=today, phone_prefix=normalized[:8])
     return {"success": True, "phone": normalized, "opted_in_until": today}
 
 
@@ -157,6 +158,27 @@ def get_todays_subscribers(bucket: str) -> List[str]:
     return [phone for phone, opted_date in daily_optins.items() if opted_date == today]
 
 
+def _update_last_alerted_flow(s3_client, bucket: str, flow: float) -> None:
+    """
+    Write `last_alerted_flow` into inniscarra_latest.json so the next run
+    compares against the flow value at the time this alert fired, not the
+    (potentially stale) PDF reading stored as latest_reading.
+    """
+    key = "aggregated/inniscarra_latest.json"
+    try:
+        response = s3_client.get_object(Bucket=bucket, Key=key)
+        data = json.loads(response["Body"].read().decode("utf-8"))
+    except ClientError:
+        data = {}
+    data["last_alerted_flow"] = flow
+    s3_client.put_object(
+        Bucket=bucket,
+        Key=key,
+        Body=json.dumps(data, indent=2).encode("utf-8"),
+        ContentType="application/json",
+    )
+
+
 def send_flow_alert(
     previous_flow: float,
     current_flow: float,
@@ -184,8 +206,11 @@ def send_flow_alert(
 
     if abs(change) < FLOW_CHANGE_THRESHOLD_M3S:
         logger.info(
-            f"Flow change {change:+.2f} m³/s is below threshold "
-            f"({FLOW_CHANGE_THRESHOLD_M3S}), no alert sent"
+            "Flow change below threshold, no alert sent",
+            change_m3s=round(change, 2),
+            threshold=FLOW_CHANGE_THRESHOLD_M3S,
+            current_flow=current_flow,
+            previous_flow=previous_flow,
         )
         return {"sent": 0, "skipped": "change below threshold", "change_m3s": change}
 
@@ -200,11 +225,12 @@ def send_flow_alert(
 
     subscribers = get_todays_subscribers(bucket)
     if not subscribers:
-        logger.info("No subscribers opted in for today, skipping alert")
+        logger.info("No subscribers opted in for today, skipping alert", change_m3s=round(change, 2))
         return {"sent": 0, "skipped": "no subscribers today", "change_m3s": change}
 
     from twilio.rest import Client  # imported here so Lambda only needs it when alerting
 
+    s3 = boto3.client("s3")
     client = Client(twilio_account_sid, twilio_auth_token)
     sent_count = 0
     errors = []
@@ -217,10 +243,19 @@ def send_flow_alert(
                 body=message,
             )
             sent_count += 1
-            logger.info(f"Alert sent to {phone[:8]}***")
+            logger.info("Alert sent", phone_prefix=phone[:8])
         except Exception as e:
-            logger.error(f"Failed to send to {phone[:8]}***: {e}")
+            logger.error("Failed to send alert", phone_prefix=phone[:8], error=str(e))
             errors.append(str(e))
+
+    # Update the reference flow so the next run compares against current_flow,
+    # not a potentially stale PDF value stored in latest_reading.
+    if sent_count > 0:
+        try:
+            _update_last_alerted_flow(s3, bucket, current_flow)
+            logger.info("Updated last_alerted_flow", flow=current_flow)
+        except Exception as e:
+            logger.error("Failed to update last_alerted_flow", error=str(e))
 
     return {
         "sent": sent_count,
