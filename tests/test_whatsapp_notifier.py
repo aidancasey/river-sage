@@ -90,11 +90,10 @@ class TestSendFlowAlert:
         assert result["skipped"] == "no subscribers today"
 
     @patch("twilio.rest.Client")
-    @patch("src.notifications.whatsapp_notifier._update_last_alerted_flow")
     @patch("src.notifications.whatsapp_notifier.get_todays_subscribers")
     @patch("src.notifications.whatsapp_notifier.boto3")
     def test_alert_sent_when_above_threshold(
-        self, mock_boto3, mock_get_subs, mock_update_flow, mock_twilio_client
+        self, mock_boto3, mock_get_subs, mock_twilio_client
     ):
         mock_get_subs.return_value = ["+353831234567"]
         mock_client_instance = MagicMock()
@@ -117,11 +116,10 @@ class TestSendFlowAlert:
         assert "25.0" in call_kwargs["body"]
 
     @patch("twilio.rest.Client")
-    @patch("src.notifications.whatsapp_notifier._update_last_alerted_flow")
     @patch("src.notifications.whatsapp_notifier.get_todays_subscribers")
     @patch("src.notifications.whatsapp_notifier.boto3")
     def test_alert_sent_on_decrease(
-        self, mock_boto3, mock_get_subs, mock_update_flow, mock_twilio_client
+        self, mock_boto3, mock_get_subs, mock_twilio_client
     ):
         mock_get_subs.return_value = ["+353831234567"]
         mock_client_instance = MagicMock()
@@ -141,25 +139,3 @@ class TestSendFlowAlert:
         call_kwargs = mock_client_instance.messages.create.call_args[1]
         assert "decreased" in call_kwargs["body"]
 
-    @patch("twilio.rest.Client")
-    @patch("src.notifications.whatsapp_notifier._update_last_alerted_flow")
-    @patch("src.notifications.whatsapp_notifier.get_todays_subscribers")
-    @patch("src.notifications.whatsapp_notifier.boto3")
-    def test_last_alerted_flow_updated_after_alert(
-        self, mock_boto3, mock_get_subs, mock_update_flow, mock_twilio_client
-    ):
-        mock_get_subs.return_value = ["+353831234567"]
-        mock_twilio_client.return_value = MagicMock()
-
-        send_flow_alert(
-            previous_flow=3.5,
-            current_flow=25.0,
-            bucket="test-bucket",
-            twilio_account_sid="sid",
-            twilio_auth_token="token",
-            twilio_from="whatsapp:+14155238886",
-        )
-
-        mock_update_flow.assert_called_once_with(
-            mock_boto3.client.return_value, "test-bucket", 25.0
-        )

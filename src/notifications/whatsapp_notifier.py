@@ -158,26 +158,6 @@ def get_todays_subscribers(bucket: str) -> List[str]:
     return [phone for phone, opted_date in daily_optins.items() if opted_date == today]
 
 
-def _update_last_alerted_flow(s3_client, bucket: str, flow: float) -> None:
-    """
-    Write `last_alerted_flow` into inniscarra_latest.json so the next run
-    compares against the flow value at the time this alert fired, not the
-    (potentially stale) PDF reading stored as latest_reading.
-    """
-    key = "aggregated/inniscarra_latest.json"
-    try:
-        response = s3_client.get_object(Bucket=bucket, Key=key)
-        data = json.loads(response["Body"].read().decode("utf-8"))
-    except ClientError:
-        data = {}
-    data["last_alerted_flow"] = flow
-    s3_client.put_object(
-        Bucket=bucket,
-        Key=key,
-        Body=json.dumps(data, indent=2).encode("utf-8"),
-        ContentType="application/json",
-    )
-
 
 def send_flow_alert(
     previous_flow: float,
@@ -247,15 +227,6 @@ def send_flow_alert(
         except Exception as e:
             logger.error("Failed to send alert", phone_prefix=phone[:8], error=str(e))
             errors.append(str(e))
-
-    # Update the reference flow so the next run compares against current_flow,
-    # not a potentially stale PDF value stored in latest_reading.
-    if sent_count > 0:
-        try:
-            _update_last_alerted_flow(s3, bucket, current_flow)
-            logger.info("Updated last_alerted_flow", flow=current_flow)
-        except Exception as e:
-            logger.error("Failed to update last_alerted_flow", error=str(e))
 
     return {
         "sent": sent_count,
