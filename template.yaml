@@ -85,16 +85,15 @@ Resources:
                 Resource:
                   - !Sub arn:aws:s3:::${S3BucketName}
                   - !Sub arn:aws:s3:::${S3BucketName}/*
-        # SSM permissions for Twilio secrets
-        - PolicyName: SSMRead
+        # SNS permissions for SMS alerts
+        - PolicyName: SNSPublish
           PolicyDocument:
             Version: '2012-10-17'
             Statement:
               - Effect: Allow
                 Action:
-                  - ssm:GetParameter
-                Resource:
-                  - !Sub arn:aws:ssm:${AWS::Region}:${AWS::AccountId}:parameter/river-data-scraper/twilio/*
+                  - sns:Publish
+                Resource: "*"
       Tags:
         - Key: Project
           Value: IrishRiversDataScraper
@@ -116,9 +115,6 @@ Resources:
           S3_REGION: !Ref AWS::Region
           S3_ENABLE_ENCRYPTION: "true"
           S3_STORAGE_CLASS: STANDARD
-          TWILIO_ACCOUNT_SID_SSM: /river-data-scraper/twilio/account_sid
-          TWILIO_AUTH_TOKEN_SSM: /river-data-scraper/twilio/auth_token
-          TWILIO_WHATSAPP_FROM_SSM: /river-data-scraper/twilio/whatsapp_from
           # Data sources config — loaded from S3 at runtime (config/data_sources.json)
           DATA_SOURCES_S3_KEY: config/data_sources.json
       Events:

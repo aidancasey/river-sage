@@ -416,18 +416,10 @@ def _send_flow_alerts_if_needed(
     s3_bucket: str,
 ) -> None:
     """
-    Trigger WhatsApp alerts if the flow has changed enough and Twilio is configured.
+    Trigger SMS alerts via SNS if the flow has changed enough.
     """
     if previous_flow is None:
         logger.info("No previous flow reading available, skipping alert check")
-        return
-
-    account_sid = _get_ssm_or_env("TWILIO_ACCOUNT_SID")
-    auth_token = _get_ssm_or_env("TWILIO_AUTH_TOKEN")
-    from_number = _get_ssm_or_env("TWILIO_WHATSAPP_FROM")
-
-    if not all([account_sid, auth_token, from_number]):
-        logger.info("Twilio not configured, skipping flow alert")
         return
 
     from .notifications.whatsapp_notifier import send_flow_alert
@@ -436,9 +428,6 @@ def _send_flow_alerts_if_needed(
         previous_flow=previous_flow,
         current_flow=current_flow,
         bucket=s3_bucket,
-        twilio_account_sid=account_sid,
-        twilio_auth_token=auth_token,
-        twilio_from=from_number,
     )
     logger.info("Flow alert check complete", **alert_result)
 

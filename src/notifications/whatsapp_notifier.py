@@ -1,7 +1,7 @@
 """
-WhatsApp flow alert notifier using Twilio.
+SMS flow alert notifier using Amazon SNS.
 
-Sends WhatsApp messages to users who have opted in for today when the
+Sends SMS messages to users who have opted in for today when the
 Inniscarra flow rate changes by more than 2 m³/s compared to the previous reading.
 
 State is stored in S3:
@@ -158,26 +158,19 @@ def get_todays_subscribers(bucket: str) -> List[str]:
     return [phone for phone, opted_date in daily_optins.items() if opted_date == today]
 
 
-
 def send_flow_alert(
     previous_flow: float,
     current_flow: float,
     bucket: str,
-    twilio_account_sid: str,
-    twilio_auth_token: str,
-    twilio_from: str,
 ) -> dict:
     """
-    Send a WhatsApp alert to all today's opt-in subscribers if the flow
+    Send an SMS alert via Amazon SNS to all today's opt-in subscribers if the flow
     has changed by more than FLOW_CHANGE_THRESHOLD_M3S.
 
     Args:
         previous_flow: Previous flow reading in m³/s
         current_flow: New flow reading in m³/s
         bucket: S3 bucket name
-        twilio_account_sid: Twilio account SID
-        twilio_auth_token: Twilio auth token
-        twilio_from: Twilio WhatsApp sender number (e.g. 'whatsapp:+14155238886')
 
     Returns:
         dict with 'sent' count and 'skipped' reason if no alert needed
@@ -197,10 +190,9 @@ def send_flow_alert(
     direction = "increased" if change > 0 else "decreased"
     message = (
         f"River Lee (Inniscarra) flow alert:\n"
-        f"Flow has {direction} by {abs(change):.1f} m³/s\n"
-        f"Current flow: {current_flow:.1f} m³/s\n"
-        f"Previous: {previous_flow:.1f} m³/s\n\n"
-        f"Reply STOP to unsubscribe."
+        f"Flow has {direction} by {abs(change):.1f} m3/s\n"
+        f"Current flow: {current_flow:.1f} m3/s\n"
+        f"Previous: {previous_flow:.1f} m3/s"
     )
 
     subscribers = get_todays_subscribers(bucket)
@@ -208,19 +200,21 @@ def send_flow_alert(
         logger.info("No subscribers opted in for today, skipping alert", change_m3s=round(change, 2))
         return {"sent": 0, "skipped": "no subscribers today", "change_m3s": change}
 
-    from twilio.rest import Client  # imported here so Lambda only needs it when alerting
-
-    s3 = boto3.client("s3")
-    client = Client(twilio_account_sid, twilio_auth_token)
+    sns = boto3.client("sns", region_name=os.environ.get("S3_REGION", "eu-west-1"))
     sent_count = 0
     errors = []
 
     for phone in subscribers:
         try:
-            client.messages.create(
-                from_=twilio_from,
-                to=f"whatsapp:{phone}",
-                body=message,
+            sns.publish(
+                PhoneNumber=phone,
+                Message=message,
+                MessageAttributes={
+                    "AWS.SNS.SMS.SMSType": {
+                        "DataType": "String",
+                        "StringValue": "Transactional",
+                    }
+                },
             )
             sent_count += 1
             logger.info("Alert sent", phone_prefix=phone[:8])
