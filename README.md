@@ -50,7 +50,8 @@ river-data-scraper/
 ├── template.yaml                 # SAM/CloudFormation template
 ├── samconfig.toml                # SAM deploy configuration (no secrets)
 ├── Makefile                      # Build and deploy automation
-├── requirements-collector.txt    # Collector Lambda deps (no Twilio/boto3)
+├── config/data_sources.json      # Station config (uploaded to S3 on deploy)
+├── requirements-collector.txt    # Collector Lambda deps (no boto3)
 ├── requirements-alerts.txt       # Alerts API Lambda deps (Twilio only, no boto3)
 │
 ├── src/                          # Collector Lambda
@@ -84,7 +85,7 @@ river-data-scraper/
 
 ## Prerequisites
 
-- Python 3.11+
+- Python 3.13
 - AWS SAM CLI
 - AWS CLI configured (`aws configure`)
 - Node.js 18+ and npm (for the web app)
@@ -161,24 +162,24 @@ aws ssm put-parameter --name /river-data-scraper/twilio/auth_token \
 | Alerts API Lambda | `river-data-scraper-alerts-api` |
 | Data S3 Bucket | `river-data-ireland-prod` |
 | Web App S3 Bucket | `river-guru-web-production` |
-| API Gateway | `https://pyubfyqre6.execute-api.eu-west-1.amazonaws.com/production` |
-| Web App | `http://river-guru-web-production.s3-website-eu-west-1.amazonaws.com` |
+| API Gateway | see CloudFormation output `RiverGuruApiUrl` |
+| Web App | https://www.theriverguru.com |
 
 **Useful commands:**
 
 ```bash
 # Tail live logs
-sam logs --tail --stack-name river-data-scraper --region eu-west-1
+sam logs --tail --stack-name river-data-scraper-prod --region eu-west-1
 
 # Manually trigger a collection run
-aws lambda invoke --function-name river-data-scraper-collector \
+aws lambda invoke --function-name river-data-scraper-prod-collector \
   --region eu-west-1 /tmp/response.json && cat /tmp/response.json | jq .
 
 # Check latest data in S3
 aws s3 cp s3://river-data-ireland-prod/aggregated/inniscarra_latest.json - | jq .
 
 # Check stack status
-aws cloudformation describe-stacks --stack-name river-data-scraper \
+aws cloudformation describe-stacks --stack-name river-data-scraper-prod \
   --region eu-west-1 --query 'Stacks[0].StackStatus'
 ```
 
@@ -212,7 +213,7 @@ CloudWatch Alarms for Lambda errors and throttles publish to an SNS topic that e
 - [x] Alerts API Lambda + AlertSubscription component
 - [ ] Additional waterlevel.ie stations
 - [ ] Met Éireann rainfall correlation
-- [ ] Raw file cleanup (30–90 day S3 lifecycle)
+- [x] Raw file S3 lifecycle (Glacier at 90 days, expire at 365 days)
 - [ ] Apple Watch / watchOS Shortcuts endpoint
 
 ## License

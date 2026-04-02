@@ -35,16 +35,21 @@ make help
 ### Option 2: Manual Step-by-Step
 
 ```bash
-# 1. Build Lambda functions
+# 1. Upload station config to S3
+aws s3 cp config/data_sources.json \
+  s3://river-data-ireland-prod/config/data_sources.json \
+  --region eu-west-1 --content-type application/json
+
+# 2. Build Lambda functions
 sam build
 
-# 2. Deploy infrastructure
+# 3. Deploy infrastructure
 sam deploy --config-env production --no-confirm-changeset
 
-# 3. Build web app (requires VITE_API_BASE_URL in web/.env)
+# 4. Build web app (requires VITE_API_BASE_URL in web/.env)
 cd web && npm install && npm run build && cd ..
 
-# 4. Deploy web app
+# 5. Deploy web app
 aws s3 sync web/dist/ s3://river-guru-web-production/ \
   --region eu-west-1 \
   --delete \
@@ -59,7 +64,7 @@ Each environment has different settings in [samconfig.toml](samconfig.toml):
 |------------|------------|----------|-----------|------------|
 | dev | river-data-scraper-dev | Every 6 hours | river-data-ireland-dev | river-guru-web-dev |
 | staging | river-data-scraper-staging | Every 2 hours | river-data-ireland-staging | river-guru-web-staging |
-| production | river-data-scraper-prod | 3 min past every hour | river-data-ireland-prod | river-guru-web-production |
+| production | river-data-scraper-prod | 30 min past every hour | river-data-ireland-prod | river-guru-web-production |
 
 ## What Gets Deployed
 
@@ -207,8 +212,12 @@ sam build
 ### API Not Working
 
 ```bash
-# Test API endpoints manually
-curl "https://3su2ubk6j2.execute-api.eu-west-1.amazonaws.com/production/api/flow/latest"
+# Get the API Gateway URL from CloudFormation, then test
+API_URL=$(aws cloudformation describe-stacks --stack-name river-data-scraper-prod \
+  --region eu-west-1 \
+  --query 'Stacks[0].Outputs[?OutputKey==`RiverGuruApiUrl`].OutputValue' \
+  --output text)
+curl "$API_URL/api/flow/latest"
 
 # Check Lambda logs
 make logs ENV=production
