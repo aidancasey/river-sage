@@ -1,10 +1,10 @@
 # Dependencies for the RiverDataCollector Lambda function.
-# Twilio is intentionally excluded — it is only needed by the AlertsApiFunction.
+# boto3/botocore intentionally excluded — provided by the Lambda runtime.
 
 requests>=2.31.0,<3.0.0
-# boto3/botocore intentionally excluded — provided by the Lambda runtime
 tenacity>=8.2.0,<9.0.0
 python-dateutil>=2.8.0,<3.0.0
 pydantic>=2.0.0,<3.0.0
 pdfplumber>=0.10.0,<1.0.0
+twilio>=9.0.0
 typing-extensions>=4.5.0; python_version < '3.11'
