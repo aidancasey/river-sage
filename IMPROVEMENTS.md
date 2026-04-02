@@ -28,29 +28,21 @@ Identified improvements to make deployments more streamlined and less error-pron
 
 ---
 
-## 4. Externalise Data Source Configuration
+## 4. ~~Externalise Data Source Configuration~~ DONE
 
-**Priority:** Medium | **Effort:** Medium
-
-The 7-station `DATA_SOURCES_JSON` is a large inline JSON blob in `template.yaml`. Adding/removing a station requires a CloudFormation deployment.
-
-**Action items:**
-- [ ] Move station config to an S3 object (e.g., `config/data_sources.json`) or SSM parameter
-- [ ] Update collector to read config at invocation time
-- [ ] Station changes become instant without redeployment
+- [x] Moved to `config/data_sources.json` in the repo
+- [x] Lambda reads from `s3://river-data-ireland-prod/config/data_sources.json` at startup
+- [x] CI uploads the file to S3 on every deploy
+- [x] Station changes take effect on next Lambda invocation — no CloudFormation deploy needed
 
 ---
 
-## 5. Add S3 Lifecycle Policies
+## 5. ~~Add S3 Lifecycle Policies~~ DONE
 
-**Priority:** Medium | **Effort:** Low (~20 min)
-
-Raw PDFs and CSVs accumulate indefinitely in S3 with no cleanup.
-
-**Action items:**
-- [ ] Add lifecycle rule: transition `raw/` to Glacier after 90 days
-- [ ] Add lifecycle rule: expire `raw/` after 1 year
-- [ ] Define in CloudFormation or apply directly to the bucket
+- [x] `raw/` transitions to Glacier after 90 days, expires after 365 days
+- [x] `parsed/` transitions to Intelligent-Tiering after 30 days (pre-existing)
+- [x] Noncurrent versions expire after 90 days (pre-existing)
+- Applied directly to `river-data-ireland-prod` bucket (bucket lives outside CloudFormation)
 
 ---
 
