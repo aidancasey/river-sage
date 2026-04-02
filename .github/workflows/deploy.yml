@@ -62,6 +62,13 @@ jobs:
           role-to-assume: arn:aws:iam::831635640076:role/github-actions-river-sage
           aws-region: eu-west-1
 
+      - name: Upload data sources config to S3
+        run: |
+          aws s3 cp config/data_sources.json \
+            s3://river-data-ireland-prod/config/data_sources.json \
+            --region eu-west-1 \
+            --content-type application/json
+
       - name: Build Lambda functions
         run: sam build
 

@@ -166,9 +166,18 @@ class Settings:
         Returns:
             Configured Settings instance
         """
-        # Load data sources
+        # Load data sources — prefer S3, fall back to DATA_SOURCES_JSON env var (local dev)
+        s3_key = os.environ.get("DATA_SOURCES_S3_KEY")
         data_sources_json = os.environ.get("DATA_SOURCES_JSON")
-        if data_sources_json:
+
+        if s3_key:
+            import boto3
+            bucket = os.environ.get("S3_BUCKET_NAME", "river-data-ireland-prod")
+            s3 = boto3.client("s3", region_name=os.environ.get("S3_REGION", "eu-west-1"))
+            response = s3.get_object(Bucket=bucket, Key=s3_key)
+            sources_data = json.loads(response["Body"].read().decode("utf-8"))
+            data_sources = [DataSourceConfig.from_dict(source) for source in sources_data]
+        elif data_sources_json:
             try:
                 sources_data = json.loads(data_sources_json)
                 data_sources = [
