@@ -32,7 +32,6 @@ build-RiverDataCollectorFunction:
 		--only-binary=:all: \
 		--quiet
 	cp -r src "$(ARTIFACTS_DIR)/src"
-	cp -r api "$(ARTIFACTS_DIR)/api"
 
 build-AlertsApiFunction:
 	python3 -m pip install -r requirements-alerts.txt \
@@ -42,7 +41,6 @@ build-AlertsApiFunction:
 		--python-version 3.13 \
 		--only-binary=:all: \
 		--quiet
-	cp -r src "$(ARTIFACTS_DIR)/src"
 	cp -r api "$(ARTIFACTS_DIR)/api"
 
 clean: ## Clean build artifacts

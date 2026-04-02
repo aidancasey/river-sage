@@ -46,16 +46,10 @@ Identified improvements to make deployments more streamlined and less error-pron
 
 ---
 
-## 6. Stop Committing `web/dist/` to Git
+## 6. ~~Stop Committing `web/dist/` to Git~~ DONE
 
-**Priority:** Medium | **Effort:** Low
-
-The built Vue.js output is in the repo, causing merge conflicts and bloating history.
-
-**Action items:**
-- [ ] Add `web/dist/` to `.gitignore`
-- [ ] Remove `web/dist/` from tracked files (`git rm -r --cached web/dist`)
-- [ ] Ensure CI/CD pipeline runs `npm run build` before `deploy-web`
+- [x] `web/dist/` already in `.gitignore` — was never tracked
+- [x] CI builds the web app fresh on every deploy
 
 ---
 
