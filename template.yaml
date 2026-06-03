@@ -368,6 +368,13 @@ Resources:
             Path: /api/flow/history
             Method: GET
             RestApiId: !Ref RiverGuruApi
+        # API Gateway event for /summary endpoint (compact, for watch Shortcut)
+        GetFlowSummary:
+          Type: Api
+          Properties:
+            Path: /api/flow/summary
+            Method: GET
+            RestApiId: !Ref RiverGuruApi
         # OPTIONS for CORS preflight
         OptionsLatest:
           Type: Api
@@ -379,6 +386,12 @@ Resources:
           Type: Api
           Properties:
             Path: /api/flow/history
+            Method: OPTIONS
+            RestApiId: !Ref RiverGuruApi
+        OptionsSummary:
+          Type: Api
+          Properties:
+            Path: /api/flow/summary
             Method: OPTIONS
             RestApiId: !Ref RiverGuruApi
       Tags:

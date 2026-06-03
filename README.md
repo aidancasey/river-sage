@@ -35,6 +35,7 @@ Users (browser)
 API Gateway
   ├── GET /api/flow/latest   ──► Data API Lambda ──► S3
   ├── GET /api/flow/history  ──► Data API Lambda ──► S3
+  ├── GET /api/flow/summary  ──► Data API Lambda ──► S3  (compact, for watch Shortcut)
   ├── POST /api/alerts/register ──► Alerts API Lambda ──► S3
   ├── POST /api/alerts/optin    ──► Alerts API Lambda ──► S3
   └── POST /api/alerts/status   ──► Alerts API Lambda ──► S3
@@ -180,6 +181,51 @@ aws cloudformation describe-stacks --stack-name river-data-scraper-prod \
   --region eu-west-1 --query 'Stacks[0].StackStatus'
 ```
 
+## Apple Watch (River Lee flow)
+
+See the live River Lee flow on your Apple Watch with an Apple **Shortcut** — no app to install. The Shortcut calls the public `GET /api/flow/summary` endpoint, which returns ready-to-display strings so the Shortcut needs no logic of its own:
+
+- `card` — a multi-line card for the watch result sheet
+- `spoken` — a clean phrase for Siri (no emoji/symbols)
+- `display` — a single-line fallback
+
+**Endpoint** (defaults to the River Lee / Inniscarra — no parameters needed):
+
+```
+https://3su2ubk6j2.execute-api.eu-west-1.amazonaws.com/production/api/flow/summary
+```
+
+Example `card` value:
+
+```
+🌊 River Lee
+6.3 m³/s
+⬆️ rising (last hr)
+🕐 40m ago
+```
+
+### 1. Build the Shortcut (once, on your iPhone)
+
+1. Open **Shortcuts** → tap **+** → rename it **"River Lee Flow"** (this name becomes your Siri phrase).
+2. Add **Get Contents of URL** — set URL to the endpoint above, Method **GET**.
+3. Add **Get Dictionary Value** — get **Value** for key **`card`** from *Contents of URL*.
+4. Add **Show Result** → select the **Dictionary Value** from step 3.
+5. *(Optional, for Siri voice)* add another **Get Dictionary Value** for key **`spoken`**, then **Speak Text** with it.
+
+### 2. Enable it on the Watch
+
+In the shortcut's settings (the ⓘ / Details panel), turn on **Show on Apple Watch** (and **Pin** if you like). It then appears in the **Shortcuts app on the watch**.
+
+### 3. Add your triggers
+
+- **Watch‑face complication** — Watch face → **Edit** → choose a complication slot → **Shortcuts** → **River Lee Flow**. Tapping it runs the Shortcut and shows the card. *(A complication can only launch the Shortcut on tap — watchOS can't render the live value on the face itself without a native app.)*
+- **Siri** — raise your wrist and say **"Hey Siri, River Lee Flow"**.
+- **Shortcuts app** — open Shortcuts on the watch and tap it.
+
+### Other stations
+
+Append `?station=<id>` for other gauges, e.g. `…/api/flow/summary?station=inniscarra`. The endpoint currently supports **flow** stations (the River Lee / `inniscarra`); the other gauges report water level/temperature rather than flow and aren't covered by this endpoint yet.
+
 ## Monitoring
 
 Logs are structured JSON, queryable in CloudWatch Insights:
@@ -211,7 +257,7 @@ CloudWatch Alarms for Lambda errors and throttles publish to an SNS topic that e
 - [ ] Additional waterlevel.ie stations
 - [ ] Met Éireann rainfall correlation
 - [x] Raw file S3 lifecycle (Glacier at 90 days, expire at 365 days)
-- [ ] Apple Watch / watchOS Shortcuts endpoint
+- [x] Apple Watch / watchOS Shortcuts endpoint (`GET /api/flow/summary`)
 
 ## License
 
