@@ -53,7 +53,7 @@
         <div v-for="station in flowStations" :key="station.id">
           <h3 class="text-lg font-semibold text-gray-800 mb-4">{{ station.name }} - Flow Rate</h3>
           <FlowStatus :station-id="station.id" />
-          <!-- WhatsApp flow alerts (Inniscarra only) -->
+          <!-- SMS flow alerts (Inniscarra only) -->
           <div v-if="station.id === 'inniscarra'" class="mt-4">
             <AlertSubscription />
           </div>

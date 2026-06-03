@@ -10,7 +10,7 @@ Covers:
 import pytest
 from unittest.mock import patch, MagicMock
 
-from src.notifications.whatsapp_notifier import (
+from src.notifications.sms_notifier import (
     send_flow_alert,
     normalize_irish_number,
     FLOW_CHANGE_THRESHOLD_M3S,
@@ -37,7 +37,7 @@ class TestNormalizeIrishNumber:
 class TestSendFlowAlert:
     """Test the alert decision logic (mocking SNS and S3)."""
 
-    @patch("src.notifications.whatsapp_notifier.boto3")
+    @patch("src.notifications.sms_notifier.boto3")
     def test_no_alert_when_change_below_threshold(self, mock_boto3):
         result = send_flow_alert(
             previous_flow=10.0,
@@ -47,7 +47,7 @@ class TestSendFlowAlert:
         assert result["sent"] == 0
         assert result["skipped"] == "change below threshold"
 
-    @patch("src.notifications.whatsapp_notifier.boto3")
+    @patch("src.notifications.sms_notifier.boto3")
     def test_no_alert_when_change_exactly_at_threshold(self, mock_boto3):
         result = send_flow_alert(
             previous_flow=10.0,
@@ -56,8 +56,8 @@ class TestSendFlowAlert:
         )
         assert result["sent"] == 0
 
-    @patch("src.notifications.whatsapp_notifier.get_todays_subscribers")
-    @patch("src.notifications.whatsapp_notifier.boto3")
+    @patch("src.notifications.sms_notifier.get_todays_subscribers")
+    @patch("src.notifications.sms_notifier.boto3")
     def test_no_alert_when_no_subscribers(self, mock_boto3, mock_get_subs):
         mock_get_subs.return_value = []
         result = send_flow_alert(
@@ -68,8 +68,8 @@ class TestSendFlowAlert:
         assert result["sent"] == 0
         assert result["skipped"] == "no subscribers today"
 
-    @patch("src.notifications.whatsapp_notifier.get_todays_subscribers")
-    @patch("src.notifications.whatsapp_notifier.boto3")
+    @patch("src.notifications.sms_notifier.get_todays_subscribers")
+    @patch("src.notifications.sms_notifier.boto3")
     def test_alert_sent_when_above_threshold(self, mock_boto3, mock_get_subs):
         mock_get_subs.return_value = ["+353831234567"]
         mock_sns = MagicMock()
@@ -89,8 +89,8 @@ class TestSendFlowAlert:
         assert "increased" in call_kwargs["Message"]
         assert "25.0" in call_kwargs["Message"]
 
-    @patch("src.notifications.whatsapp_notifier.get_todays_subscribers")
-    @patch("src.notifications.whatsapp_notifier.boto3")
+    @patch("src.notifications.sms_notifier.get_todays_subscribers")
+    @patch("src.notifications.sms_notifier.boto3")
     def test_alert_sent_on_decrease(self, mock_boto3, mock_get_subs):
         mock_get_subs.return_value = ["+353831234567"]
         mock_sns = MagicMock()

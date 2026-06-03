@@ -277,7 +277,7 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
                         s3_keys=list(s3_keys.keys())
                     )
 
-                    # Send WhatsApp alerts for Inniscarra flow changes
+                    # Send SMS alerts for Inniscarra flow changes
                     if source_config.station_id == "inniscarra" and hasattr(parsed_data.current_reading, "flow_rate_m3s"):
                         _send_flow_alerts_if_needed(
                             previous_flow=previous_inniscarra_flow,
@@ -422,7 +422,7 @@ def _send_flow_alerts_if_needed(
         logger.info("No previous flow reading available, skipping alert check")
         return
 
-    from .notifications.whatsapp_notifier import send_flow_alert
+    from .notifications.sms_notifier import send_flow_alert
 
     alert_result = send_flow_alert(
         previous_flow=previous_flow,
