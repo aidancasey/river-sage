@@ -101,18 +101,15 @@ These are already configured for this project:
 - IAM role `github-actions-river-sage` with trust policy scoped to `aidancasey/river-sage:main`
 - `production` environment in GitHub repo settings
 
-### Secrets in SSM Parameter Store
+### SSM Parameter Store
 
-Twilio credentials are read by Lambda at runtime from SSM (not at deploy time):
+SMS alerts use Amazon SNS via the Lambda's IAM role — there are no SMS credentials to store. The only parameter is the alarm-notification email, resolved at deploy time:
 
 | SSM Path | Type |
 |---|---|
-| `/river-data-scraper/twilio/account_sid` | SecureString |
-| `/river-data-scraper/twilio/auth_token` | SecureString |
-| `/river-data-scraper/twilio/whatsapp_from` | SecureString |
 | `/river-data-scraper/alert-email` | String |
 
-No redeploy needed after rotating a secret — Lambda picks up the new value on next cold start.
+This value is resolved by CloudFormation at deploy time (`{{resolve:ssm:...}}`), so changing it requires a redeploy to update the SNS topic subscription.
 
 ### Local development prerequisites
 
