@@ -28,6 +28,17 @@ s3_client = boto3.client('s3')
 S3_BUCKET_NAME = os.environ.get('S3_BUCKET_NAME', 'river-data-ireland-prod')
 S3_REGION = os.environ.get('S3_REGION', 'eu-west-1')
 
+# Known station IDs
+STATIONS = [
+    'inniscarra',
+    'lee_waterworks',
+    'blackwater_fermoy',
+    'blackwater_mallow',
+    'suir_golden',
+    'owenboy',
+    'bandon_curranure',
+]
+
 # CORS headers for all responses
 CORS_HEADERS = {
     'Access-Control-Allow-Origin': '*',
@@ -67,6 +78,8 @@ def lambda_handler(event: Dict[str, Any], context: Any) -> Dict[str, Any]:
             return handle_latest_flow(event)
         elif path.endswith('/history') or path.endswith('/history/'):
             return handle_historical_flow(event)
+        elif path.endswith('/summary') or path.endswith('/summary/'):
+            return handle_flow_summary(event)
         else:
             return error_response(404, 'Endpoint not found')
 
@@ -93,15 +106,7 @@ def handle_latest_flow(event: Dict[str, Any]) -> Dict[str, Any]:
         logger.info(f"Fetching latest data (filter: {station_filter or 'all'})")
 
         # List of all stations to fetch
-        stations = [
-            'inniscarra',
-            'lee_waterworks',
-            'blackwater_fermoy',
-            'blackwater_mallow',
-            'suir_golden',
-            'owenboy',
-            'bandon_curranure'
-        ]
+        stations = list(STATIONS)
 
         # Apply filter if specified
         if station_filter:
@@ -373,6 +378,171 @@ def handle_historical_flow(event: Dict[str, Any]) -> Dict[str, Any]:
     except Exception as e:
         logger.error(f"Error fetching historical flow: {str(e)}", exc_info=True)
         return error_response(500, f'Error fetching historical flow data: {str(e)}')
+
+
+def handle_flow_summary(event: Dict[str, Any]) -> Dict[str, Any]:
+    """
+    Handle GET /summary endpoint — a compact, precomputed flow summary designed
+    for low-power clients (e.g. an Apple Watch Shortcut).
+
+    Returns the current flow plus whether it rose/fell/held steady over the last
+    hour, and a ready-to-display string so the client needs zero logic.
+
+    Query parameters:
+    - station: Station ID (default: inniscarra — the River Lee)
+
+    Returns:
+        Response with a compact summary object.
+    """
+    try:
+        query_params = event.get('queryStringParameters') or {}
+        station_id = query_params.get('station', 'inniscarra')
+
+        if station_id not in STATIONS:
+            return error_response(404, f'Unknown station: {station_id}')
+
+        latest = fetch_station_latest(station_id)
+        if not latest or 'flowRate' not in latest:
+            return error_response(404, f'No flow data available for station: {station_id}')
+
+        flow = latest['flowRate']
+        unit = latest.get('unit', 'm³/s')
+        river = latest.get('river', '') or 'River'
+        age_minutes = latest.get('dataAge')
+
+        # Trend over the last hour: compare the two most recent hourly readings.
+        points = _recent_flow_points(station_id, hours=3)
+        if len(points) >= 2:
+            change_last_hour = round(points[-1]['flow'] - points[-2]['flow'], 1)
+        else:
+            change_last_hour = None
+        trend, arrow = _trend_from_delta(change_last_hour)
+        emoji = {'rising': '⬆️', 'falling': '⬇️', 'steady': '➡️'}[trend]
+
+        # Single line — fallback / iPhone (age note only when stale).
+        display = f"{river}  {flow:.1f} {unit}  {arrow} {trend}{_age_note(age_minutes)}"
+
+        # Multi-line emoji card — for the watch "Show Result" sheet.
+        age_rel = _relative_age(age_minutes)
+        card_lines = [f"🌊 {river}", f"{flow:.1f} {unit}", f"{emoji} {trend} (last hr)"]
+        if age_rel:
+            card_lines.append(f"🕐 {age_rel}")
+        card = "\n".join(card_lines)
+
+        # Clean spoken phrase — for the Siri trigger (no emoji/symbols).
+        spoken = f"{river} is {flow:.1f} cubic metres per second and {trend} over the last hour"
+        if age_minutes is not None and age_minutes > 90:
+            spoken += f". The reading is {round(age_minutes / 60)} hours old"
+
+        return cors_response(200, {
+            'river': river,
+            'station': latest.get('name', ''),
+            'flow': flow,
+            'unit': unit,
+            'trend': trend,
+            'arrow': arrow,
+            'emoji': emoji,
+            'changeLastHour': change_last_hour,
+            'display': display,
+            'card': card,
+            'spoken': spoken,
+            'updated': latest.get('timestamp', ''),
+            'dataAgeMinutes': age_minutes,
+        })
+
+    except Exception as e:
+        logger.error(f"Error building flow summary: {str(e)}", exc_info=True)
+        return error_response(500, f'Error building flow summary: {str(e)}')
+
+
+def _recent_flow_points(station_id: str, hours: int = 3) -> List[Dict[str, Any]]:
+    """
+    Return recent flow readings as [{'timestamp': datetime, 'flow': float}], sorted
+    oldest-first, within the last `hours`.
+
+    Reads the parsed monthly files from S3 (mirrors the loading in
+    handle_historical_flow) for the current and previous month so a reading from
+    just before a month boundary is still found.
+    """
+    from datetime import timezone
+    import gzip
+
+    now = datetime.now(timezone.utc)
+    cutoff = now - timedelta(hours=hours)
+
+    # Current month + previous month (covers month-boundary lookback).
+    current_month = now.replace(day=1, hour=0, minute=0, second=0, microsecond=0)
+    previous_month = (current_month - timedelta(days=1)).replace(day=1)
+    months = [(previous_month.year, previous_month.month), (current_month.year, current_month.month)]
+
+    readings: List[Dict[str, Any]] = []
+    for year, month in months:
+        s3_key = f'parsed/{station_id}/{year}/{month:02d}/{station_id}_flow_{year}{month:02d}.json.gz'
+        try:
+            response = s3_client.get_object(Bucket=S3_BUCKET_NAME, Key=s3_key)
+            with gzip.GzipFile(fileobj=response['Body']) as gzipfile:
+                data = json.loads(gzipfile.read().decode('utf-8'))
+            readings.extend(data.get('historical_readings', []))
+        except s3_client.exceptions.NoSuchKey:
+            continue
+        except Exception as e:
+            logger.warning(f"Error reading {station_id} {year}/{month:02d} for summary: {str(e)}")
+            continue
+
+    points = []
+    for reading in readings:
+        timestamp_str = reading.get('timestamp', '')
+        if 'flow_rate_m3s' not in reading:
+            continue
+        try:
+            reading_time = datetime.fromisoformat(timestamp_str.replace('Z', '+00:00'))
+        except ValueError:
+            continue
+        if reading_time >= cutoff:
+            points.append({'timestamp': reading_time, 'flow': reading['flow_rate_m3s']})
+
+    points.sort(key=lambda p: p['timestamp'])
+    return points
+
+
+def _trend_from_delta(delta: Optional[float]) -> tuple:
+    """
+    Map an hourly flow change to a (trend_word, arrow) pair.
+
+    A 0.1 m³/s deadband (the data's resolution) is treated as no real change, so
+    tiny fluctuations don't flip the arrow.
+    """
+    if delta is None:
+        return 'steady', '→'
+    if delta >= 0.1:
+        return 'rising', '↑'
+    if delta <= -0.1:
+        return 'falling', '↓'
+    return 'steady', '→'
+
+
+def _age_note(age_minutes: Optional[int]) -> str:
+    """
+    Return a parenthetical staleness note, or '' when the data is fresh.
+
+    Silent at/under 90 minutes; shows minutes up to 2h, hours beyond that.
+    """
+    if age_minutes is None or age_minutes <= 90:
+        return ''
+    if age_minutes < 120:
+        return f'  ({age_minutes}m old)'
+    return f'  ({round(age_minutes / 60)}h old)'
+
+
+def _relative_age(age_minutes: Optional[int]) -> str:
+    """Human relative freshness for the card, e.g. 'just now', '40m ago', '2h ago'."""
+    if age_minutes is None:
+        return ''
+    if age_minutes < 1:
+        return 'just now'
+    if age_minutes < 60:
+        return f'{age_minutes}m ago'
+    return f'{round(age_minutes / 60)}h ago'
 
 
 def get_flow_status(flow_rate: float) -> str:
