@@ -1,7 +1,7 @@
 """
 River Guru Alerts API Lambda Function
 
-Handles WhatsApp flow alert subscription management:
+Handles SMS flow alert subscription management:
   POST /api/alerts/register  - register a phone number
   POST /api/alerts/optin     - opt in for today's alerts
   GET  /api/alerts/status    - check opt-in status for a phone number
@@ -64,7 +64,7 @@ def handle_register(event: Dict[str, Any]) -> Dict[str, Any]:
     if not phone:
         return error_response(400, "phone is required", event)
 
-    from src.notifications.whatsapp_notifier import register_subscriber
+    from src.notifications.sms_notifier import register_subscriber
 
     result = register_subscriber(phone, S3_BUCKET_NAME)
     if not result["success"]:
@@ -82,7 +82,7 @@ def handle_optin(event: Dict[str, Any]) -> Dict[str, Any]:
     if not phone:
         return error_response(400, "phone is required", event)
 
-    from src.notifications.whatsapp_notifier import opt_in_today
+    from src.notifications.sms_notifier import opt_in_today
 
     result = opt_in_today(phone, S3_BUCKET_NAME)
     if not result["success"]:
@@ -104,7 +104,7 @@ def handle_status(event: Dict[str, Any]) -> Dict[str, Any]:
     if not phone:
         return error_response(400, "phone is required", event)
 
-    from src.notifications.whatsapp_notifier import get_opt_in_status
+    from src.notifications.sms_notifier import get_opt_in_status
 
     result = get_opt_in_status(phone, S3_BUCKET_NAME)
     if "error" in result:

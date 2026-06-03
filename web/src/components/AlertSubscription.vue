@@ -14,7 +14,7 @@
     </div>
 
     <p class="text-sm text-gray-600 mb-4">
-      Get a WhatsApp message when the Inniscarra flow changes by more than 2 m³/s.
+      Get an SMS when the Inniscarra flow changes by more than 2 m³/s.
       Opt in each day you plan to go fishing.
     </p>
 
@@ -70,7 +70,7 @@
       </button>
 
       <p v-if="optedInToday" class="text-xs text-gray-500 mt-2 text-center">
-        You'll receive a WhatsApp message if the flow changes by &gt;2 m³/s today.
+        You'll receive an SMS if the flow changes by &gt;2 m³/s today.
         Opt-in resets at midnight.
       </p>
 

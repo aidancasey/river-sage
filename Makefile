@@ -41,6 +41,9 @@ build-AlertsApiFunction:
 		--only-binary=:all: \
 		--quiet
 	cp -r api "$(ARTIFACTS_DIR)/api"
+	# The handlers import shared logic from src.notifications.sms_notifier
+	# (which also pulls in src.utils / src.storage), so src must be packaged too.
+	cp -r src "$(ARTIFACTS_DIR)/src"
 
 clean: ## Clean build artifacts
 	@echo "$(BLUE)Cleaning build artifacts...$(NC)"

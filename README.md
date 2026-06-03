@@ -58,7 +58,7 @@ river-data-scraper/
 │   ├── lambda_handler.py
 │   ├── config/settings.py
 │   ├── connectors/http_connector.py
-│   ├── notifications/whatsapp_notifier.py
+│   ├── notifications/sms_notifier.py
 │   ├── parsers/
 │   │   ├── esb_hydro_parser.py
 │   │   └── waterlevel_parser.py

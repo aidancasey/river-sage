@@ -132,7 +132,7 @@ Resources:
       BuildMethod: makefile
 
   # ========================================
-  # Phase 3: WhatsApp Flow Alerts
+  # Phase 3: SMS Flow Alerts
   # ========================================
 
   # IAM Role for Alerts API Lambda
@@ -173,7 +173,7 @@ Resources:
     Type: AWS::Serverless::Function
     Properties:
       FunctionName: !Sub ${AWS::StackName}-alerts-api
-      Description: Manages WhatsApp flow alert subscriptions (register, opt-in, status)
+      Description: Manages SMS flow alert subscriptions (register, opt-in, status)
       CodeUri: .
       Handler: api.alerts_api.lambda_handler
       Role: !GetAtt AlertsApiLambdaRole.Arn
