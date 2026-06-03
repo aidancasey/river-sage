@@ -15,7 +15,7 @@ A low-cost, serverless system for aggregating water data from Irish rivers, incl
 - **Serverless Architecture**: AWS Lambda (arm64, Python 3.13), minimal operating costs (<$5/month)
 - **Hourly Data Collection**: EventBridge trigger at 30 minutes past the hour
 - **River Guru Web App**: Mobile-first Vue.js SPA with real-time flow display and historical charts
-- **WhatsApp Flow Alerts**: Daily opt-in alerts via Twilio when Inniscarra flow changes by >2 m³/s
+- **SMS Flow Alerts**: Daily opt-in alerts via Amazon SNS when Inniscarra flow changes by >2 m³/s
 - **Zero-Database Design**: All state (data + alert subscriptions) stored as JSON/CSV in S3
 
 ## Architecture
@@ -26,7 +26,7 @@ EventBridge (hourly)
        ▼
 Collector Lambda ──► S3 (raw PDFs/CSVs, parsed JSON, aggregated latest)
   • ESB Hydro PDF      │
-  • waterlevel.ie API  └──► Twilio WhatsApp API ──► Subscribers' phones
+  • waterlevel.ie API  └──► Amazon SNS SMS ──► Subscribers' phones
                                 (flow change > 2 m³/s)
 
 Users (browser)
@@ -52,7 +52,7 @@ river-data-scraper/
 ├── Makefile                      # Build and deploy automation
 ├── config/data_sources.json      # Station config (uploaded to S3 on deploy)
 ├── requirements-collector.txt    # Collector Lambda deps (no boto3)
-├── requirements-alerts.txt       # Alerts API Lambda deps (Twilio only, no boto3)
+├── requirements-alerts.txt       # Alerts API Lambda deps (none — SNS via runtime boto3)
 │
 ├── src/                          # Collector Lambda
 │   ├── lambda_handler.py
@@ -134,20 +134,17 @@ aws s3 sync dist/ s3://river-guru-web-production/ --region eu-west-1 --delete
 
 ### Secrets
 
-Twilio credentials are stored in **AWS SSM Parameter Store** as `SecureString` and read by the Lambda **at runtime** (not at deploy time). No secrets are stored in source code, environment variables, or GitHub.
+SMS flow alerts are sent via **Amazon SNS** using the Lambda's IAM role (`sns:Publish`) — there are **no SMS credentials** to store. The only SSM parameter is the alarm-notification email, read at deploy time by the SNS alarm topic. No secrets are stored in source code, environment variables, or GitHub.
 
 | SSM Path | Description |
 |---|---|
-| `/river-data-scraper/twilio/account_sid` | Twilio Account SID |
-| `/river-data-scraper/twilio/auth_token` | Twilio Auth Token |
-| `/river-data-scraper/twilio/whatsapp_from` | WhatsApp sender number |
 | `/river-data-scraper/alert-email` | Email for CloudWatch alarm notifications |
 
-To rotate a secret:
+To change the alarm email:
 ```bash
-aws ssm put-parameter --name /river-data-scraper/twilio/auth_token \
-  --value "new-value" --type SecureString --region eu-west-1 --overwrite
-# No redeploy needed — Lambda picks up new value on next cold start
+aws ssm put-parameter --name /river-data-scraper/alert-email \
+  --value "new@example.com" --type String --region eu-west-1 --overwrite
+# Redeploy to update the SNS topic subscription (this value resolves at deploy time)
 ```
 
 ## Production Environment
@@ -209,7 +206,7 @@ CloudWatch Alarms for Lambda errors and throttles publish to an SNS topic that e
 - [x] S3 storage (raw, parsed, aggregated)
 - [x] River Guru web app (Vue.js, mobile-first)
 - [x] API Gateway + Data API Lambda
-- [x] WhatsApp flow alerts (Twilio, daily opt-in, threshold detection)
+- [x] SMS flow alerts (Amazon SNS, daily opt-in, threshold detection)
 - [x] Alerts API Lambda + AlertSubscription component
 - [ ] Additional waterlevel.ie stations
 - [ ] Met Éireann rainfall correlation

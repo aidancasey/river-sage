@@ -1,4 +1,4 @@
-.PHONY: help build deploy deploy-dev deploy-staging deploy-prod clean build-web deploy-web test build-RiverDataCollectorFunction build-AlertsApiFunction
+.PHONY: help build deploy deploy-prod clean build-web deploy-web test build-RiverDataCollectorFunction build-AlertsApiFunction
 
 # Default environment
 ENV ?= production
@@ -17,7 +17,6 @@ help: ## Show this help message
 	@echo ""
 	@echo "$(YELLOW)Examples:$(NC)"
 	@echo "  make deploy-prod    # Deploy everything to production"
-	@echo "  make deploy-dev     # Deploy everything to development"
 	@echo "  make build          # Build both Lambda and web app"
 
 # SAM makefile build targets — called by 'sam build' for each function.
@@ -92,13 +91,7 @@ deploy: build deploy-infrastructure deploy-web ## Build and deploy everything
 		--query 'Stacks[0].Outputs[?OutputKey==`RiverGuruApiUrl` || OutputKey==`RiverGuruWebsiteUrl`].[OutputKey,OutputValue]' \
 		--output table || true
 
-deploy-dev: ## Deploy to development environment
-	@$(MAKE) deploy ENV=dev
-
-deploy-staging: ## Deploy to staging environment
-	@$(MAKE) deploy ENV=staging
-
-deploy-prod: ## Deploy to production environment
+deploy-prod: ## Deploy to production environment (the only environment)
 	@$(MAKE) deploy ENV=production
 
 test-api: ## Test API endpoints

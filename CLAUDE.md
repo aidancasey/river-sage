@@ -15,8 +15,8 @@ If a change affects stack names, Lambda function names, S3 bucket names, SSM pat
 ## Project overview
 
 Three Lambda functions (arm64, python3.13, eu-west-1) deployed via AWS SAM:
-- `river-data-scraper-collector` — hourly EventBridge trigger, scrapes ESB Hydro PDF + waterlevel.ie API, writes to S3, sends WhatsApp alerts via Twilio
-- `river-data-scraper-alerts-api` — REST API for managing WhatsApp alert subscriptions
+- `river-data-scraper-collector` — hourly EventBridge trigger, scrapes ESB Hydro PDF + waterlevel.ie API, writes to S3, sends SMS alerts via Amazon SNS
+- `river-data-scraper-alerts-api` — REST API for managing SMS alert subscriptions
 - `river-data-scraper-data-api` — REST API for serving river flow data to the web app
 
 ## SAM build
@@ -59,24 +59,21 @@ sam deploy --config-env production --no-confirm-changeset
 
 `samconfig.toml` has all non-secret parameters pre-configured for production. It is safe to commit — **no secrets are stored in it**.
 
-### Secrets
+### Secrets & configuration
 
-Twilio credentials live in **SSM Parameter Store** (eu-west-1) as `SecureString`. The Lambda reads them **at runtime** via `_get_ssm_or_env()` in `lambda_handler.py` — they are NOT resolved at deploy time.
+SMS flow alerts are sent via **Amazon SNS** using the collector's IAM role (`sns:Publish`) — there are **no SMS credentials**. The only SSM parameter is the alarm email, resolved by CloudFormation at deploy time via `{{resolve:ssm:/river-data-scraper/alert-email}}`.
 
 | SSM path | What it is |
 |---|---|
-| `/river-data-scraper/twilio/account_sid` | Twilio Account SID |
-| `/river-data-scraper/twilio/auth_token` | Twilio Auth Token |
-| `/river-data-scraper/twilio/whatsapp_from` | Twilio WhatsApp sender number |
 | `/river-data-scraper/alert-email` | Email for CloudWatch alarm notifications |
 
-The template passes SSM **paths** as `*_SSM` env vars (e.g., `TWILIO_ACCOUNT_SID_SSM`). The Lambda calls `ssm:GetParameter` with `WithDecryption=True` on first invocation and caches the result for warm reuse. For local development, set plain `TWILIO_ACCOUNT_SID` etc. in your environment.
+`lambda_handler.py` still has a generic `_get_ssm_or_env()` helper (reads a `*_SSM` env var, calls `ssm:GetParameter` with `WithDecryption=True`, caches per cold start), but no secrets are wired through it since the Twilio→SNS migration.
 
-To rotate a secret:
+To change the alarm email:
 ```bash
-aws ssm put-parameter --name /river-data-scraper/twilio/auth_token \
-  --value "new-value" --type SecureString --region eu-west-1 --overwrite
-# No redeploy needed — Lambda picks up new value on next cold start
+aws ssm put-parameter --name /river-data-scraper/alert-email \
+  --value "new@example.com" --type String --region eu-west-1 --overwrite
+# Redeploy to update the SNS topic subscription (resolved at deploy time)
 ```
 
 ### Monitoring
@@ -99,7 +96,7 @@ du -sh .aws-sam/build/*/
 du -sh .aws-sam/build/RiverDataCollectorFunction/* | sort -rh | head -15
 ```
 
-The collector package should be ~90MB (Twilio added ~30MB). If it bloats again, the usual culprits are:
+The collector package should be ~90MB. The alerts-api package no longer bundles Twilio (~30MB saved by the SNS migration — it now has no third-party deps). If a package bloats again, the usual culprits are:
 - `web/` directory being copied (CodeUri: . copies everything not in .samignore)
 - `boto3`/`botocore` bundled unnecessarily
 - Dependencies bleeding in from the root `requirements.txt`
@@ -125,9 +122,9 @@ After deploying, run these checks:
 aws cloudformation describe-stacks --stack-name river-data-scraper-prod \
   --region eu-west-1 --query 'Stacks[0].StackStatus'
 
-# 2. Confirm no OTEL layers and SSM paths are set (not raw credentials)
+# 2. Confirm no OTEL layers are attached
 aws lambda get-function-configuration --function-name river-data-scraper-collector \
-  --region eu-west-1 --query '{Layers:Layers,TwilioSSM:Environment.Variables.TWILIO_ACCOUNT_SID_SSM}'
+  --region eu-west-1 --query '{Layers:Layers}'
 
 # 3. Live invocation test (confirms all 7 stations collect successfully)
 aws lambda invoke --function-name river-data-scraper-collector \

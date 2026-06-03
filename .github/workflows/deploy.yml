@@ -3,6 +3,8 @@ name: Deploy to Production
 on:
   push:
     branches: [main]
+  # Allow manual re-deploys / deploying without a code push.
+  workflow_dispatch:
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
@@ -10,6 +12,12 @@ env:
 permissions:
   id-token: write
   contents: read
+
+# Never let two production deploys run at once. Queue, don't cancel — we don't
+# want to interrupt an in-flight CloudFormation update.
+concurrency:
+  group: deploy-production
+  cancel-in-progress: false
 
 jobs:
   test:
@@ -21,6 +29,8 @@ jobs:
       - uses: actions/setup-python@v5
         with:
           python-version: "3.13"
+          cache: pip
+          cache-dependency-path: requirements-dev.txt
 
       - name: Install test dependencies
         run: pip install -r requirements-dev.txt
@@ -53,6 +63,12 @@ jobs:
         with:
           python-version: "3.13"
 
+      - uses: actions/setup-node@v4
+        with:
+          node-version: 20
+          cache: npm
+          cache-dependency-path: web/package-lock.json
+
       - uses: aws-actions/setup-sam@v2
         with:
           use-installer: true
@@ -81,11 +97,43 @@ jobs:
             --stack-name river-data-scraper-prod --region eu-west-1 \
             --query 'Stacks[0].Outputs[?OutputKey==`RiverGuruApiUrl`].OutputValue' \
             --output text)
-          cd web && npm install && npm run build
+          cd web && npm ci && npm run build
 
-      - name: Deploy web app to S3
+      # Two-pass sync: hashed build assets are content-addressed and safe to
+      # cache forever; HTML must never be long-cached or users get a stale SPA.
+      - name: Deploy web app to S3 (immutable assets)
         run: |
           aws s3 sync web/dist/ s3://river-guru-web-production/ \
             --region eu-west-1 \
             --delete \
-            --cache-control "max-age=31536000,public"
+            --exclude "*.html" \
+            --cache-control "public,max-age=31536000,immutable"
+
+      - name: Deploy web app to S3 (HTML, no-cache)
+        run: |
+          aws s3 sync web/dist/ s3://river-guru-web-production/ \
+            --region eu-west-1 \
+            --exclude "*" \
+            --include "*.html" \
+            --cache-control "public,max-age=0,must-revalidate"
+
+      # The site is fronted by Cloudflare (not CloudFront), proxying directly to
+      # the S3 website bucket. Cloudflare treats HTML as DYNAMIC (not edge-cached)
+      # and the hashed assets are immutable, so the cache headers above usually
+      # suffice. This purge is belt-and-braces and only runs if the Cloudflare
+      # secrets are present, so it's safe to leave unconfigured.
+      # (secrets can't be used in a step `if:` directly, so gate on an env var)
+      - name: Purge Cloudflare cache
+        env:
+          CLOUDFLARE_API_TOKEN: ${{ secrets.CLOUDFLARE_API_TOKEN }}
+          CLOUDFLARE_ZONE_ID: ${{ vars.CLOUDFLARE_ZONE_ID }}
+        if: ${{ vars.CLOUDFLARE_ZONE_ID != '' }}
+        run: |
+          if [ -z "$CLOUDFLARE_API_TOKEN" ]; then
+            echo "CLOUDFLARE_API_TOKEN not set — skipping purge"; exit 0
+          fi
+          curl -sS -X POST \
+            "https://api.cloudflare.com/client/v4/zones/${CLOUDFLARE_ZONE_ID}/purge_cache" \
+            -H "Authorization: Bearer ${CLOUDFLARE_API_TOKEN}" \
+            -H "Content-Type: application/json" \
+            --data '{"purge_everything":true}'
