@@ -1,11 +1,10 @@
 name: CI
 
-# Runs on every PR and on pushes to non-main branches.
-# Catches test/template/frontend breakage BEFORE it reaches main (which deploys).
+# Runs on every PR. A PR is the only path to main (which deploys), so this is
+# the gate that catches test/template/frontend breakage before it ships.
+# Intentionally not triggered on branch pushes — that would double every run.
 on:
   pull_request:
-  push:
-    branches-ignore: [main]
 
 env:
   FORCE_JAVASCRIPT_ACTIONS_TO_NODE24: true
